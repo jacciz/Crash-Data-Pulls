@@ -1,0 +1,168 @@
+---
+title: "Crash Data Pull Template V3.3"
+output:
+  html_document:
+    df_print: paged
+  word_document: default
+---
+
+This is a template to do a data pull. You must select the years of the data.  This notebook uses functions from an R script (Crash_Analysis_Functions.R) to import data (old and new db), to add columns of crash flags (i.e. speed, deer) and to add other columns (i.e. crash time, age group, county name).
+
+## Here are the functions in Crash_Analysis_Functions.R
+
+### Import data functions for new db:
++ import_crashes(fileloc = file_loc, years_selected = years)         - also for vehicle and persons  
+
+### Import data functions for old db:
++ import_crashes_old(fileloc = file_loc, years_selected = years_old) - also for vehicle and persons  
++ These also renames columns (and some variables) "ACCDNMBR", "ACCDDATE", "ACCDMTH", "ACCDSVR", "ACCDHOUR", "INJSVR", "ACCDTYPE" to match new db  
+
+### Crash flag functions add a flag column with either 'Y' or 'N'. These functions and their flag column are:
++ get_deer_crashes(crash_df)            - deer_flag (old & new db)  
++ get_distracted_driver_flag(person_df) - distracted_flag (new db)  
++ get_impaired_driver(person_df)        - impaireddriver_flag (new db)  
++ get_speed_flag(person_df)             - speed_flag (old & new db)  
++ get_teen_driver(person_df)            - teendriver_flag (new db)  
++ get_older_driver(person_df)           - olderdriver_flag (new db)  
++ get_seatbelt_flag_by_role(person_df)  - seatbelt_flag (new db)    # Note: someone in that unit & role did not wear a seatbelt, i.e. a passenger or a driver  
++ get_seatbelt_flag_by_unit(person_df)  - seatbelt_flag (new db)    # Note: someone in that unit did not wear a seatbelt  
+
+### Functions that add a column (only for new db):
++ get_crash_times(any_df)               - newtime  
++ get_age_groups(person_df)             - age_group  
++ county_rename(any_df)                 - countyname  
+
+### Other functions:
++ get_motorcycle_persons(person_df, vehicle_df) - selects motorcyclists (old & new db)  
+
+```{r Setup, include = FALSE}
+# Set working directory to where this notebook is saved
+knitr::opts_chunk$set(echo = FALSE, comment = NA, warning = FALSE, error = FALSE, message = FALSE, tidy = TRUE, fig.dim = c(7, 4), global.par = TRUE)
+knitr::opts_knit$set(root.dir = '/...')
+```
+
+```{r Load Libraries}
+# setwd("W:/HSSA/Keep/Jaclyn Ziebert/R/CSV") # if you want to change wd, put this in the code block
+# install.packages("tidyverse", repo = 'https://cran.R-project.org')  try this to install packages in base R, not RStudio
+
+library(dplyr)        # to subset, filter, summarize data, in tidyverse, replaces plyr
+library(ggplot2)      # create charts
+library(tidyverse)    # to select, filter data, for data science
+# library(data.table) # Data type
+library(lubridate)    # for working with dates, need this for data import
+# library(janitor)    # make tabulation tables, tabyl
+library(expss)        # SPSS style package
+library(fst)          # Data type of db data
+library(ggtext)       # HTML for charts
+
+source("W:/HSSA/Keep/Jaclyn Ziebert/R/Crash-Data-Pulls/Crash_Analysis_Functions.R") # Source of all the functions
+```
+
+```{r What to select}
+file_loc = "C:/CSV/csv_from_sas/fst/" # location of FST crash database files to load
+years = c("17", "18", "19") # select years to import, must be in this format
+years_old = c( "16") # select years to import, 2016 and before
+```
+
+```{r Run import and combine old/new data}
+# This imports new databases - you may choose to select certain columns
+all_crashes <- import_crashes() #%>% select(CRSHNMBR, CRSHDATE, CNTYCODE, CRSHSVR, CRSHTYPE, starts_with("ANMLTY")) # columns to select
+all_vehicles <- import_vehicles() #%>% select(CRSHNMBR, CRSHDATE, UNITNMBR, VEHTYPE)
+all_persons <- import_persons() #%>% select(CRSHNMBR, CNTYCODE, CRSHDATE, UNITNMBR, DRVRFLAG, HLMTUSE, EYEPROT, SFTYEQP, ROLE, SEX, AGE, DISTACT, starts_with("DRVRPC"), starts_with("STATNM"), starts_with("DRVRDS"))
+
+# This imports old databases, does remove parking lot crashes and relabels columns
+all_crashes_old <- import_crashes_old()
+all_vehicles_old <- import_vehicles_old()
+all_persons_old <- import_persons_old()
+
+# To combine old and new db
+crashes <- bind_cols(all_crashes_old, all_crashes)
+# vehicles <- bind_cols(all_vehicles_old, all_vehicles)
+# persons <- bind_cols(all_persons_old, all_persons)
+```
+
+```{r Specific stuff}
+# remove duplicates
+# motorcycles[!duplicated(motorcycles[, c('CRSHNMBR')]),]
+
+# DRVRPC - put data in long format to count frequency
+# all_persons %>% select(starts_with("DRVRPC")) %>% pivot_longer(starts_with("DRVRPC")) %>% filter(value !='') 
+```
+
+```{r Make a Frequency Table expss package}
+# expss_output_rnotebook()
+# test <- all_crashes %>%
+#   apply_labels(
+#             CRSHSVR = "Crash Severity",
+#             CNTYCODE = "County"
+#   ) %>%
+#   tab_cells(county_rename(all_crashes)) %>%       # stuff to put in the rows
+#   tab_subgroup(ALCFLAG == "Yes") %>%                # only select certain elements
+#   tab_cols(CRSHSVR %nest% ALCFLAG, total()) %>%     # columns with nesting
+#   tab_stat_cases(total_label = "Total Crashes") %>% # frequency count, can also do percent
+#   tab_pivot() %>%
+#   drop_empty_columns()                              # use in conjunction with tab_subgroup
+
+# row.names(save) <-save$row_labels # change row names from row_labels
+
+# test = split_columns(test)                          # this splits the row_names so county names are in a separate column, I don't like this
+
+# write_labelled_xlsx(test, "output.xlsx")          # output a table to an xlsx, saved to working directory
+# write.csv(test, "fileloc.csv") # or can write to csv
+```
+```{r Save as Excel Workbook}
+# library(openxlsx)
+# wb = createWorkbook()
+# sh = addWorksheet(wb, "Tables")
+# xl_write(df_to_save, wb, sh)
+# saveWorkbook(wb, "W:/HSSA/Keep/Jaclyn Ziebert/Data Requests/xx.xlsx", overwrite = TRUE)
+```
+
+```{r Create a Graph}
+# Get WISINJ by Year, recode for all injuries = Injured
+persons_count <- all_persons %>% filter(WISINJ != 'No Apparent Injury') %>% mutate(inj = dplyr::recode(
+  WISINJ,
+  !!!c(
+    "Fatal Injury" = "Killed",
+    "Suspected Serious Injury" = "Injured",
+    "Suspected Minor Injury" = "Injured",
+    "Possible Injury" = "Injured"
+  )
+)) %>% group_by(year = year(CRSHDATE), inj) %>% summarise(Total = n()) %>% mutate(color = ifelse(inj == "Killed","#D50032","#428BCA"))
+
+persons_count %>%
+  ggplot(aes(x = year, y = Total, fill = inj)) + geom_bar(stat = 'identity', position = 'dodge') + theme_classic() + theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_text(size = 14),
+    legend.position = "none",
+    # plot.title = element_text(size = 10),
+    plot.title.position = "plot",
+    plot.title = element_markdown(lineheight = 1.1) # for title colors
+    # legend.text = element_markdown(size = 11)
+  ) +
+  geom_text(
+    aes(label = Total, color = inj),
+    position = position_dodge(width = .9),
+    vjust = -.4,
+    size = 5,
+    fontface = "bold" 
+  ) + scale_y_continuous(limits = c(0, max(persons_count$Total) + 30), expand = expansion(mult = c(0, .05)),
+                         name = "") +
+  scale_x_continuous(breaks = seq(0, max(persons_count$year), 1)) +
+  scale_color_manual(values = c("Injured" = "#428BCA", "Killed" = "#D50032")) + #for geom_text
+  scale_fill_manual( # for bars
+    name = "",
+    values = c("Injured" = "#428BCA", "Killed" = "#D50032"),
+    labels = c("Injured", "Killed")
+  ) +
+  labs(
+    title = "<span style='font-size:16pt'>
+    <span style='color:#428BCA;'>**Injured**</span> and
+    <span style='color:#D50032;'>**Killed**</span> Persons
+    </span>"
+  )
+```
