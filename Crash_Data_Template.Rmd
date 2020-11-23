@@ -1,5 +1,5 @@
 ---
-title: "Crash Data Pull Template V3.3"
+title: "Crash Data Pull Template"
 output:
   html_document:
     df_print: paged
@@ -31,9 +31,25 @@ This is a template to do a data pull. You must select the years of the data.  Th
 + get_crash_times(any_df)               - newtime  
 + get_age_groups(person_df)             - age_group  
 + county_rename(any_df)                 - countyname  
++ bin_injury_persons(person_df)         - inj - bins into Killed, Injured, No Injury  
++ get_drug_alc_suspected                - drug_alc_susp
 
 ### Other functions:
 + get_motorcycle_persons(person_df, vehicle_df) - selects motorcyclists (old & new db)  
+
+## There also snippets which are chunks of code (Data_Pull_Snippets.snippets).
+
+### These include:
++ my_barchart_inj_killed_by_year  
++ my_barchart_mostharm_by_crshsvr_percent  
++ my_stacked_barchart_suspected_drugalcohol  
++ my_barchart_by_hwyclass  
++ my_heatmap_time_of_day  
++ my_barchart_stacked_age_gender  
++ my_make_freq_table_expss  
++ my_save_as_excel_workbook  
++ my_make_county_prop_symbol_map  
++ my_load_county_map_data  
 
 ```{r Setup, include = FALSE}
 # Set working directory to where this notebook is saved
@@ -76,7 +92,7 @@ all_vehicles_old <- import_vehicles_old()
 all_persons_old <- import_persons_old()
 
 # To combine old and new db
-crashes <- bind_cols(all_crashes_old, all_crashes)
+# crashes <- bind_cols(all_crashes_old, all_crashes)
 # vehicles <- bind_cols(all_vehicles_old, all_vehicles)
 # persons <- bind_cols(all_persons_old, all_persons)
 ```
@@ -88,81 +104,7 @@ crashes <- bind_cols(all_crashes_old, all_crashes)
 # DRVRPC - put data in long format to count frequency
 # all_persons %>% select(starts_with("DRVRPC")) %>% pivot_longer(starts_with("DRVRPC")) %>% filter(value !='') 
 ```
-
-```{r Make a Frequency Table expss package}
-# expss_output_rnotebook()
-# test <- all_crashes %>%
-#   apply_labels(
-#             CRSHSVR = "Crash Severity",
-#             CNTYCODE = "County"
-#   ) %>%
-#   tab_cells(county_rename(all_crashes)) %>%       # stuff to put in the rows
-#   tab_subgroup(ALCFLAG == "Yes") %>%                # only select certain elements
-#   tab_cols(CRSHSVR %nest% ALCFLAG, total()) %>%     # columns with nesting
-#   tab_stat_cases(total_label = "Total Crashes") %>% # frequency count, can also do percent
-#   tab_pivot() %>%
-#   drop_empty_columns()                              # use in conjunction with tab_subgroup
-
-# row.names(save) <-save$row_labels # change row names from row_labels
-
-# test = split_columns(test)                          # this splits the row_names so county names are in a separate column, I don't like this
-
-# write_labelled_xlsx(test, "output.xlsx")          # output a table to an xlsx, saved to working directory
-# write.csv(test, "fileloc.csv") # or can write to csv
-```
-```{r Save as Excel Workbook}
-# library(openxlsx)
-# wb = createWorkbook()
-# sh = addWorksheet(wb, "Tables")
-# xl_write(df_to_save, wb, sh)
-# saveWorkbook(wb, "W:/HSSA/Keep/Jaclyn Ziebert/Data Requests/xx.xlsx", overwrite = TRUE)
-```
-
-```{r Create a Graph}
-# Get WISINJ by Year, recode for all injuries = Injured
-persons_count <- all_persons %>% filter(WISINJ != 'No Apparent Injury') %>% mutate(inj = dplyr::recode(
-  WISINJ,
-  !!!c(
-    "Fatal Injury" = "Killed",
-    "Suspected Serious Injury" = "Injured",
-    "Suspected Minor Injury" = "Injured",
-    "Possible Injury" = "Injured"
-  )
-)) %>% group_by(year = year(CRSHDATE), inj) %>% summarise(Total = n()) %>% mutate(color = ifelse(inj == "Killed","#D50032","#428BCA"))
-
-persons_count %>%
-  ggplot(aes(x = year, y = Total, fill = inj)) + geom_bar(stat = 'identity', position = 'dodge') + theme_classic() + theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    axis.line = element_blank(),
-    axis.ticks = element_blank(),
-    axis.text.y = element_blank(),
-    axis.text.x = element_text(size = 14),
-    legend.position = "none",
-    # plot.title = element_text(size = 10),
-    plot.title.position = "plot",
-    plot.title = element_markdown(lineheight = 1.1) # for title colors
-    # legend.text = element_markdown(size = 11)
-  ) +
-  geom_text(
-    aes(label = Total, color = inj),
-    position = position_dodge(width = .9),
-    vjust = -.4,
-    size = 5,
-    fontface = "bold" 
-  ) + scale_y_continuous(limits = c(0, max(persons_count$Total) + 30), expand = expansion(mult = c(0, .05)),
-                         name = "") +
-  scale_x_continuous(breaks = seq(0, max(persons_count$year), 1)) +
-  scale_color_manual(values = c("Injured" = "#428BCA", "Killed" = "#D50032")) + #for geom_text
-  scale_fill_manual( # for bars
-    name = "",
-    values = c("Injured" = "#428BCA", "Killed" = "#D50032"),
-    labels = c("Injured", "Killed")
-  ) +
-  labs(
-    title = "<span style='font-size:16pt'>
-    <span style='color:#428BCA;'>**Injured**</span> and
-    <span style='color:#D50032;'>**Killed**</span> Persons
-    </span>"
-  )
+```{r Create a Table to Knit HTML}
+# https://cran.r-project.org/web/packages/kableExtra/vignettes/awesome_table_in_html.html#Overview
+# all_crashes %>% filter(CYCLFLAG == "Y") %>% group_by(year = year(CRSHDATE), URBRURAL) %>% summarise(count = n()) %>% pivot_wider(names_from = URBRURAL, values_from = count) %>% adorn_totals("col") %>% kbl(caption = "Title") %>%  kable_styling()
 ```

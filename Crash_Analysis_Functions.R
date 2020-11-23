@@ -289,6 +289,44 @@ get_motorcycle_persons <- function(person_df, vehicle_df) {
   )) # use semi_join to keep all obsv in x that match in y
 }
 
+###### Bin Injury Severity ######
+bin_injury_persons <- function(person_df) {
+    person_df %>% mutate(inj = dplyr::recode(
+      WISINJ,
+      !!!c(
+        "Fatal Injury" = "Killed",
+        "Suspected Serious Injury" = "Injured",
+        "Suspected Minor Injury" = "Injured",
+        "Possible Injury" = "Injured",
+        "No Apparent Injury" = "No Injury"
+      )))
+}
+###### Find Drug/Alcohol Suspected ######
+get_drug_alc_suspected <- function(person_df) {
+  person_df %>% mutate(ALCSUSP = dplyr::recode(ALCSUSP, !!!c(
+    "101" = "Yes",
+    "102" = "No",
+    "999" = "Unknown"
+  )),
+  dplyr::recode(DRUGSUSP, !!!c(
+    "101" = "Yes",
+    "102" = "No",
+    "999" = "Unknown"
+  ))) %>%
+    mutate(
+      ALCSUSP = ifelse(is.na(ALCSUSP) |
+                         ALCSUSP == "" , "Unknown", ALCSUSP),
+      DRUGSUSP = ifelse(is.na(DRUGSUSP) |
+                          DRUGSUSP == "" , "Unknown", DRUGSUSP),
+      drug_alc_susp = ifelse(
+        ALCSUSP == "Yes" | DRUGSUSP == "Yes",
+        "Yes",
+        ifelse(ALCSUSP == "No" |
+                 DRUGSUSP == "No", "No", "Unknown")
+      )
+    )
+}
+
 ###### Get County Name Function ###### 
 # This relabels so county code is exactly 2 digits, not needed
 # all_crashes <-

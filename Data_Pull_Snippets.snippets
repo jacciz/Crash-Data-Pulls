@@ -1,0 +1,379 @@
+# Snippets are placed under Tools -> Global Options -> Code -> Edit Snippets
+
+snippet my_barchart_inj_killed_by_year
+	persons_count <- ${1:all_persons} %>% 
+		bin_injury_persons() %>%
+		filter(inj != 'No Apparent Injury') %>%
+		group_by(year = year(CRSHDATE), inj) %>%
+		summarise(Total = n()) %>%
+		mutate(color = ifelse(inj == "Killed","#D50032","#428BCA"))
+	
+		persons_count %>%
+			ggplot(aes(x = year, y = Total, fill = inj)) +
+			geom_bar(stat = 'identity', position = 'dodge') +
+			theme_classic() +
+			theme(
+				axis.title.x = element_blank(),
+				axis.title.y = element_blank(),
+				axis.line = element_blank(),
+				axis.ticks = element_blank(),
+				axis.text.y = element_blank(),
+				axis.text.x = element_text(size = 14),
+				legend.position = "none",
+			 # plot.title = element_text(size = 10),
+				plot.title.position = "plot",
+				plot.title = element_markdown(lineheight = 1.1) # for title colors
+			 # legend.text = element_markdown(size = 11)
+			 ) +
+			 geom_text(aes(label = Total, color = inj),
+				 position = position_dodge(width = .9),
+				 vjust = -.4,
+				 size = 5,
+				 fontface = "bold") +
+			 scale_y_continuous(limits = c(0, max(persons_count$Total) + 30),
+			 	expand = expansion(mult = c(0, .05)), name = "") +
+			 scale_x_continuous(breaks = seq(0, max(persons_count$year), 1)) +
+			 #for geom_text
+			 scale_color_manual(values = c("Injured" = "#428BCA", "Killed" = "#D50032")) +
+			 scale_fill_manual( # for bars
+			 	name = "",
+					values = c("Injured" = "#428BCA", "Killed" = "#D50032"),
+			 		labels = c("Injured", "Killed")) +
+			 labs(title = "<span style='font-size:16pt'>
+			 	<span style='color:#428BCA;'>**Injured**</span> and
+			 	<span style='color:#D50032;'>**Killed**</span> Persons
+			 	</span>"
+			 )
+		 
+snippet my_barchart_mostharm_by_crshsvr_percent
+	mostharm <- ${1:all_crashes} %>% 
+		group_by(MOSTHARM, CRSHSVR) %>%
+		summarise(Percentage=n()) %>%
+		group_by(CRSHSVR) %>%
+		mutate(Percentage=Percentage/sum(Percentage)*100)
+	
+	# Remove some with close to 0%
+	mostharm %>%
+	filter(MOSTHARM %in% c("Motor Veh In Transport", "Overturn/Rollover", "Non Domesticated Animal (Alive)", "Other Non-Collision", "Ditch", "Fell/Jumped From Motor Vehicle", "Curb", "Tree")) %>% 
+		ggplot(aes(x = reorder(MOSTHARM, desc(-Percentage)),
+				y = Percentage,
+				fill = CRSHSVR)) +
+			geom_bar(stat = 'identity', position = 'dodge') +
+			theme_classic() +
+			theme(
+				axis.title.x = element_blank(),
+				axis.title.y = element_blank(),
+				axis.line = element_blank(),
+				axis.ticks = element_blank(),
+				axis.text.x = element_blank(),
+				axis.text = element_text(size = 14),
+				plot.title = element_markdown(lineheight = 1.1), # for title colors
+				plot.title.position = "plot",
+				legend.position = "none") +
+			coord_flip() +
+			geom_text(aes(label = paste0(round(Percentage, 0), "%"),
+				color = CRSHSVR),
+				position = position_dodge(width = .9),
+				hjust = -.2,
+				size = 5,
+				fontface = "bold"
+				) +
+			scale_y_continuous(expand = expansion(mult = c(0, .05)),
+					name = "",
+					limits = c(0, max(mostharm$Percentage) + 6)) +
+			scale_color_manual(values = c(
+					"Fatal" = "#D50032",
+					"Injury" = "#428BCA",
+					"Property Damage" = "#4DB848")) +
+			#for geom_text
+			scale_fill_manual( # for bars
+				name = "",
+				values = c(
+					"Fatal" = "#D50032",
+					"Injury" = "#428BCA",
+					"Property Damage" = "#4DB848"),
+				labels = c("Injury", "Fatal", "Property Damage")) +
+			# labs(title = "Top DRVRPC")
+			labs(title = "<span style='font-size:16pt'>Top most harmful event in
+			<span style='color:#4DB848;'>**property damage**</span>,
+			<span style='color:#428BCA;'>**injury**</span>, and
+			<span style='color:#D50032;'>**fatal**</span> motorcycle crashes (2017 - 2019)
+			</span>")
+snippet my_stacked_barchart_suspected_drugalcohol
+
+	ytd_chart_alc_drug <- ${1:all_persons} %>%
+		filter(WISINJ != 'No Apparent Injury') %>%
+		bin_injury_persons() %>% 
+		get_drug_alc_suspected() %>% 
+		group_by(year = year(CRSHDATE), inj, drug_alc_susp) %>%
+		summarise(Total = n()) %>%
+		mutate(color = ifelse(inj == "Killed", "#D50032", "#428BCA"))
+	
+	ytd_chart_alc_drug %>%
+	# filter(inj == 'Injured') %>% 
+		ggplot(aes(x = year, y = Total, fill = drug_alc)) +
+		geom_bar(stat = 'identity') +
+		theme_classic() +
+		theme(
+			axis.title.x = element_blank(),
+			axis.title.y = element_blank(),
+			axis.line = element_blank(),
+			axis.ticks = element_blank(),
+			axis.text.y = element_blank(),
+			axis.text.x = element_text(size = 14),
+			legend.position = "none",
+			# plot.title = element_text(size = 10),
+			plot.title.position = "plot",
+			plot.title = element_markdown(lineheight = 1.1) # for title colors
+			# legend.text = element_markdown(size = 11)
+			) +
+			geom_text(
+				aes(label = Total),
+				position = position_stack(vjust=0.5),
+				size = 5,
+				color = "white",
+				fontface = "bold")  +
+			scale_y_continuous(expand = expansion(mult = c(0, .05)),
+				name = "") +
+			scale_x_continuous(breaks = seq(0, max(ytd_chart_alc_drug$year), 1)) +
+			scale_fill_manual( # for bars
+				name = "",
+				values = c("Yes" = "#D50032", "No" = "#428BCA", "Unknown" = "#4DB848"),
+				labels = c("Yes", "No", "Unknown")) +
+			labs(title = "<span style='font-size:16pt'>
+			<span style='color:#D50032;'>**Suspected**</span>,
+			<span style='color:#428BCA;'>**Not Suspected**</span>, and 
+			<span style='color:#4DB848;'>**Unknown**</span> Drug or Alcohol Use of Injured Motorcyclists (Year-to-Date)
+			</span>")
+
+snippet my_barchart_by_hwyclass
+	# Add column to get road type
+	motor_veh_ytd <- motor_veh_ytd %>%
+		mutate(hwy = dplyr::recode(
+			HWYCLASS, !!!c(
+			"1" = "Local",
+			"2" = "Local",
+			"4" = "Local",
+			"5" = "County Trunk",
+			"6" = "County Trunk",
+			"7" = "State Highway",
+			"8" = "State Highway",
+			"9" = "Interstate Hwy",
+			"10" = "Interstate Hwy",
+			"State Highway Rural" = "State Highway",
+			"State Highway Urban" = "State Highway",
+			"Interstate Hwy Urban" = "Interstate Hwy",
+			"Interstate Hwy Rural" = "Interstate Hwy",
+			"City Street Urban" = "Local",
+			"City Street Rural" = "Local",
+			"Town Road Rural" = "Local",
+			"County Trunk Urban" = "County Trunk",
+			"County Trunk Rural" = "County Trunk")))
+	
+	# Set order of roads for the chart
+	road_factor = c( "Local", "County Trunk", "State Highway", "Interstate Hwy")
+	
+	motor_veh_ytd_byroad <- motor_veh_ytd %>%
+		group_by(year = year(CRSHDATE), hwy)
+		%>% summarise(count = n())
+	
+	motor_veh_ytd_byroad %>% 
+		ggplot(aes(
+			x = year,
+			y = count,
+			fill = factor(hwy, level = road_factor))) +
+		geom_bar(stat = 'identity', position = 'dodge') +
+		theme_classic() +
+		theme(
+			axis.title.x = element_blank(),
+			axis.title.y = element_blank(),
+			axis.line = element_blank(),
+			axis.ticks = element_blank(),
+			axis.text.y = element_blank(),
+			axis.text = element_text(size = 14),
+			plot.title = element_markdown(lineheight = 1.1), # for title colors
+			plot.title.position = "plot",
+			legend.position = "none") +
+		geom_text(
+			aes(label = count, color = factor(hwy, level = road_factor)),
+			position = position_dodge(width = .9),
+			vjust = -.2,
+			size = 5,
+			fontface = "bold") +
+			scale_y_continuous(expand = expansion(mult = c(0, .05)),
+				name = "",
+				limits = c(0, max(motor_veh_ytd_byroad$count) + 20)) +
+		scale_x_continuous(breaks = seq(0, 2021, 1)) + # year 0 to 2021, label each year
+		scale_color_manual(values = c( #for geom_text
+			"Local" = "#D50032",
+			"County Trunk" = "#428BCA",
+			"State Highway" = "#4DB848",
+			"Interstate Hwy" = "#d6a60f"
+			)) + 
+		scale_fill_manual( # for bars
+			name = "",
+			values = c(
+			"Local" = "#D50032",
+			"County Trunk" = "#428BCA",
+			"State Highway" = "#4DB848",
+			"Interstate Hwy" = "#F9C218")) +
+		labs(title = "<span style='font-size:16pt'>Motorcycle crashes by
+			<span style='color:#D50032;'>**local**</span>,
+			<span style='color:#428BCA;'>**county**</span>,
+			<span style='color:#4DB848;'>**state**</span>, and
+			<span style='color:#d6a60f;'>**interstate**</span> roads (Year-to-Date)
+			</span>")
+
+snippet my_heatmap_time_of_day
+# This is for factor
+weekdays <- c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+
+motor_crashes_1719 %>%
+group_by(DAYNMBR, newtime) %>% 
+summarise(count = n()) %>%
+na.omit(newtime) %>%
+	ggplot(aes(factor(DAYNMBR, level = weekdays), newtime, fill = count)) +
+	geom_tile() +
+	scale_fill_distiller(palette = "Blues", direction = +1) +
+	theme_classic() +
+	theme(
+		legend.title = element_blank(),
+		plot.title = element_markdown(lineheight = 1.1),
+		axis.title.x = element_blank(),
+		axis.title.y = element_blank(),
+		axis.text = element_text(size = 14),
+		legend.text = element_text(size = 14),
+		axis.ticks = element_blank(),
+		axis.line = element_blank()
+	 ) +
+	 scale_x_discrete() +
+	 labs(
+		title = "<span style='font-size:16pt'>
+		<span style='color:#428BCA;'></span> Time of Day of Motorcycle Crashes (2017-2019)
+		</span>"
+	 )
+
+snippet my_barchart_stacked_age_gender
+	# Assign colors
+	color_map_gender <- c("F"="#D50032", "M"="#428BCA", "U" = "#F9C218")
+
+	motor_persons_age <- motor_persons %>%
+		get_age_groups() %>%
+		filter(year(CRSHDATE) %in% c(2017, 2018, 2019)) %>% as.data.table()
+		
+	 person <- motor_persons_age[, .(age_group, SEX)]
+	    
+	 age_sex_table <- table(age = person$age_group, sex = person$SEX) %>% as_tibble() # get counts, put in a tibble
+	    
+	# Set factors
+	age_factor = c("0-4","5-9","10-14","15-19","20-24","25-29","30-34","35-39","40-44", "45-49","50-54","55-59","60-64","65-69","70+")
+	
+	# Removing Unknown gender
+	age_sex_table %>% filter(sex != 'U') %>% 
+	  ggplot(aes(x = factor(age, level = age_factor), y = n, fill = sex)) +
+	  geom_bar(stat = 'identity') +
+	  theme_classic() +
+	  theme(
+	    axis.title.x = element_blank(),
+	    axis.title.y = element_blank(),
+	    axis.line = element_blank(),
+	    axis.ticks = element_blank(),
+	    axis.text.y = element_blank(),
+	    axis.text.x = element_text(size = 14),
+	    legend.position = "none",
+	    # plot.title = element_text(size = 10),
+	    plot.title.position = "plot",
+	    plot.title = element_markdown(lineheight = 1.1) # for title colors
+	    # legend.text = element_markdown(size = 11)
+	  ) +
+	  geom_text(
+	    aes(label = n),
+	    position = position_stack(vjust=0.5),
+	    size = 5,
+	    color = "white",
+	    fontface = "bold"
+	  )  +
+	 scale_y_continuous(expand = expansion(mult = c(0, .05)),
+	                         name = "")  +
+	  # scale_x_continuous(breaks = seq(0, max(ytd_chart_alc_drug$year), 1)) +
+	  scale_fill_manual( # for bars
+	    name = "",
+	    values = color_map_gender,
+	    labels = c("Yes", "No", "Unknown")
+	  ) +
+	  labs(
+	    title = "<span style='font-size:16pt'> Age of
+	    <span style='color:#428BCA;'>**Male**</span> and
+	    <span style='color:#D50032;'>**Female**</span> Motorcyclists in a Crash (2017-2019)
+	    </span>"
+	  )
+	  
+snippet my_make_freq_table_expss
+	table <- all_crashes %>% county_rename() %>% 
+		apply_labels(
+			CRSHSVR = "Crash Severity",
+			countyname = "County"
+			) %>%
+		tab_cells(countyname) %>%                         # variable to put in rows
+		tab_subgroup(ALCFLAG == "Yes") %>%                # to select certain elements
+		tab_cols(CRSHSVR %nest% ALCFLAG, total()) %>%     # columns with nesting
+		tab_stat_cases(total_label = "Total Crashes") %>% # frequency count, can also do percent
+		tab_pivot() %>%
+		drop_empty_columns()                              # use in conjunction with tab_subgroup
+	
+	row.names(table) <-table$row_labels # change row names from row_labels
+	
+	table = split_columns(table) #%>% select(-1)                        # this splits the row_labels so county names are in a separate column, I don't like this
+	
+	write_labelled_xlsx(table, "output.xlsx")          # output a table to an xlsx
+	write.csv(table, "output.csv") # output a table to a csv
+
+snippet my_save_as_excel_workbook
+	library(openxlsx)
+	wb = createWorkbook()
+	sh = addWorksheet(wb, "tab_name")
+	xl_write(df_to_save, wb, sh)
+	saveWorkbook(wb, "W:/HSSA/Keep/Jaclyn Ziebert/Data Requests/workbook.xlsx", overwrite = TRUE)
+
+snippet my_make_county_prop_symbol_map
+	ggplot() +
+	geom_sf(data = wi_counties_sf$geometry, fill = "#F4F5F3", color = "grey80") +
+	theme_classic() +
+	geom_point(data = pt_3_year,
+		color = "white",
+		fill =  "#B67467",
+		pch=21, # must be >20 to get outline
+		aes(
+			geometry = geometry,
+			size = tot_3yr),
+			stat = "sf_coordinates") + 
+	scale_colour_discrete(guide = FALSE)+ # remove color legend
+	theme(
+		axis.line=element_blank(),
+		axis.text=element_blank(),
+		axis.ticks=element_blank(),
+		axis.title=element_blank(),
+		plot.title = element_markdown(lineheight = 1.1), # for title colors
+		panel.background=element_rect(fill="#CCD2D4", colour=NA),
+		legend.background=element_rect( colour=NA),
+		strip.background=element_rect(fill="#CCD2D4", colour="grey50"),
+		legend.direction = "horizontal",
+		legend.position="bottom",
+		legend.text = element_text(size = 14),
+		legend.title = element_blank()
+		) +
+	labs(
+	title = "<span style='font-size:16pt'>Total Motorcyclists <span style='color:#B67467;'>**Killed**</span> (2017-2019)
+	</span>")
+
+snippet my_load_county_map_data
+	library(sf)
+	library(tigris)
+	wi_counties <- counties(state = '55', cb=TRUE, class = 'sf') # get counties
+	# wi_counties84 <- st_transform(wi_counties, crs = ('+proj=longlat +datum=WGS84'))
+	wi_counties <- st_transform(wi_counties, 3071) %>% select(-c(ALAND, AWATER)) # set CRS
+	wi_county_centroids <- st_centroid(wi_counties)
+	
+	# Join to spatial and transform data
+	wi_county_centroids_fatal <- left_join(wi_county_centroids, fatal_county, by =c( "NAME" = "countyname")) %>% st_as_sf()
+	wi_counties_sf_fatal <- left_join(wi_counties, fatal_county, by =c( "NAME" = "countyname")) %>% st_as_sf()

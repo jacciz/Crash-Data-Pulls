@@ -28,13 +28,17 @@ These scripts make data pull requests and data analysis faster and easier. I cre
 + get_crash_times(any_df)               - newtime  
 + get_age_groups(person_df)             - age_group  
 + county_rename(any_df)                 - countyname  
++ bin_injury_persons(person_df)         - inj - bins into Killed, Injured, No Injury
++ get_drug_alc_suspected                - drug_alc_susp
 
 ### Other functions:
 + get_motorcycle_persons(person_df, vehicle_df) - selects motorcyclists (old & new db)  
 
-
 ## Crash_Data_Template.Rmd
 This is a template to do a data pull. This notebook uses functions from an R script (Crash_Analysis_Functions.R).
+
+## Data_Pull_Snippets
+These are chunks of code that should be placed in RStudio's snippets file. Read the templace for more info on these.
 
 ## Save from CSV to FST Batch.R
 This script will batch open CSV files in file_loc, put it in a df, export as fst with filename (i.e. 17vehicle)
