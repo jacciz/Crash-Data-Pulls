@@ -1,9 +1,10 @@
-These scripts make data pull requests and data analysis faster and easier. I created a bunch of functions that include:
+These scripts make data pull requests and data analysis faster and easier. I created a bunch of functions that:
 - convert data from SAS to R-friendly format (FST)
 - import data from old and new databases
 - combine old and new databases into a single data frame
 - get crash flags (i.e. deer, teen driver)
 - bin by age group and crash time
+- and also snippets
 
 ## Crash_Analysis_Functions.R
 
@@ -29,7 +30,7 @@ These scripts make data pull requests and data analysis faster and easier. I cre
 + get_age_groups(person_df)             - age_group  
 + county_rename(any_df)                 - countyname  
 + bin_injury_persons(person_df)         - inj - bins into Killed, Injured, No Injury
-+ get_drug_alc_suspected                - drug_alc_susp
++ get_drug_alc_suspected                - drug_alc_susp - bins into Yes, No, Unknown
 
 ### Other functions:
 + get_motorcycle_persons(person_df, vehicle_df) - selects motorcyclists (old & new db)  
@@ -38,13 +39,14 @@ These scripts make data pull requests and data analysis faster and easier. I cre
 This is a template to do a data pull. This notebook uses functions from an R script (Crash_Analysis_Functions.R).
 
 ## Data_Pull_Snippets
-These are chunks of code that should be placed in RStudio's snippets file. Read the templace for more info on these.
+These are chunks of code that should be placed in RStudio's snippets file. Read Crash_Data_Template.Rmd for more info on these.
+There are snippets for making charts, making tables, importing mapping data, and saving as excel workbook.
 
 ## Save from CSV to FST Batch.R
 This script will batch open CSV files in file_loc, put it in a df, export as fst with filename (i.e. 17vehicle)
 
 ## Saving Crash Narratives.R
-This script will open SAS narrative files, put it in a df, export as fst as a shortened names (i.e. 17vehicle)
+This script will open SAS narrative files, put it in a df, export as fst as a shortened names (i.e. 17narrative)
 
 ## Export SAS to FST Script
 Powershell program that will update current year crash data. It runs a SAS script and an R script to export data into fst format.

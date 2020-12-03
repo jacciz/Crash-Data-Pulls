@@ -8,42 +8,42 @@ snippet my_barchart_inj_killed_by_year
 		summarise(Total = n()) %>%
 		mutate(color = ifelse(inj == "Killed","#D50032","#428BCA"))
 	
-		persons_count %>%
-			ggplot(aes(x = year, y = Total, fill = inj)) +
-			geom_bar(stat = 'identity', position = 'dodge') +
-			theme_classic() +
-			theme(
-				axis.title.x = element_blank(),
-				axis.title.y = element_blank(),
-				axis.line = element_blank(),
-				axis.ticks = element_blank(),
-				axis.text.y = element_blank(),
-				axis.text.x = element_text(size = 14),
-				legend.position = "none",
-			 # plot.title = element_text(size = 10),
-				plot.title.position = "plot",
-				plot.title = element_markdown(lineheight = 1.1) # for title colors
-			 # legend.text = element_markdown(size = 11)
-			 ) +
-			 geom_text(aes(label = Total, color = inj),
-				 position = position_dodge(width = .9),
-				 vjust = -.4,
-				 size = 5,
-				 fontface = "bold") +
-			 scale_y_continuous(limits = c(0, max(persons_count$Total) + 30),
-			 	expand = expansion(mult = c(0, .05)), name = "") +
-			 scale_x_continuous(breaks = seq(0, max(persons_count$year), 1)) +
-			 #for geom_text
-			 scale_color_manual(values = c("Injured" = "#428BCA", "Killed" = "#D50032")) +
-			 scale_fill_manual( # for bars
-			 	name = "",
-					values = c("Injured" = "#428BCA", "Killed" = "#D50032"),
-			 		labels = c("Injured", "Killed")) +
-			 labs(title = "<span style='font-size:16pt'>
-			 	<span style='color:#428BCA;'>**Injured**</span> and
-			 	<span style='color:#D50032;'>**Killed**</span> Persons
-			 	</span>"
-			 )
+	persons_count %>%
+		ggplot(aes(x = year, y = Total, fill = inj)) +
+		geom_bar(stat = 'identity', position = 'dodge') +
+		theme_classic() +
+		theme(
+			axis.title.x = element_blank(),
+			axis.title.y = element_blank(),
+			axis.line = element_blank(),
+			axis.ticks = element_blank(),
+			axis.text.y = element_blank(),
+			axis.text.x = element_text(size = 14),
+			legend.position = "none",
+		 # plot.title = element_text(size = 10),
+			plot.title.position = "plot",
+			plot.title = element_markdown(lineheight = 1.1) # for title colors
+		 # legend.text = element_markdown(size = 11)
+		 ) +
+		 geom_text(aes(label = Total, color = inj),
+			 position = position_dodge(width = .9),
+			 vjust = -.4,
+			 size = 5,
+			 fontface = "bold") +
+		 scale_y_continuous(limits = c(0, max(persons_count$Total) + 30),
+		 	expand = expansion(mult = c(0, .05)), name = "") +
+		 scale_x_continuous(breaks = seq(0, max(persons_count$year), 1)) +
+		 #for geom_text
+		 scale_color_manual(values = c("Injured" = "#428BCA", "Killed" = "#D50032")) +
+		 scale_fill_manual( # for bars
+		 	name = "",
+				values = c("Injured" = "#428BCA", "Killed" = "#D50032"),
+		 		labels = c("Injured", "Killed")) +
+		 labs(title = "<span style='font-size:16pt'>
+		 	<span style='color:#428BCA;'>**Injured**</span> and
+		 	<span style='color:#D50032;'>**Killed**</span> Persons
+		 	</span>"
+		 )
 		 
 snippet my_barchart_mostharm_by_crshsvr_percent
 	mostharm <- ${1:all_crashes} %>% 
@@ -54,7 +54,9 @@ snippet my_barchart_mostharm_by_crshsvr_percent
 	
 	# Remove some with close to 0%
 	mostharm %>%
-	filter(MOSTHARM %in% c("Motor Veh In Transport", "Overturn/Rollover", "Non Domesticated Animal (Alive)", "Other Non-Collision", "Ditch", "Fell/Jumped From Motor Vehicle", "Curb", "Tree")) %>% 
+	filter(MOSTHARM %in% c("Motor Veh In Transport", "Overturn/Rollover",
+			"Non Domesticated Animal (Alive)", "Other Non-Collision",
+			"Ditch", "Fell/Jumped From Motor Vehicle", "Curb", "Tree")) %>% 
 		ggplot(aes(x = reorder(MOSTHARM, desc(-Percentage)),
 				y = Percentage,
 				fill = CRSHSVR)) +
@@ -99,9 +101,10 @@ snippet my_barchart_mostharm_by_crshsvr_percent
 			<span style='color:#428BCA;'>**injury**</span>, and
 			<span style='color:#D50032;'>**fatal**</span> motorcycle crashes (2017 - 2019)
 			</span>")
+			
 snippet my_stacked_barchart_suspected_drugalcohol
 
-	ytd_chart_alc_drug <- ${1:all_persons} %>%
+	chart_alc_drug <- ${1:all_persons} %>%
 		filter(WISINJ != 'No Apparent Injury') %>%
 		bin_injury_persons() %>% 
 		get_drug_alc_suspected() %>% 
@@ -109,7 +112,7 @@ snippet my_stacked_barchart_suspected_drugalcohol
 		summarise(Total = n()) %>%
 		mutate(color = ifelse(inj == "Killed", "#D50032", "#428BCA"))
 	
-	ytd_chart_alc_drug %>%
+	chart_alc_drug %>%
 	# filter(inj == 'Injured') %>% 
 		ggplot(aes(x = year, y = Total, fill = drug_alc)) +
 		geom_bar(stat = 'identity') +
@@ -135,7 +138,7 @@ snippet my_stacked_barchart_suspected_drugalcohol
 				fontface = "bold")  +
 			scale_y_continuous(expand = expansion(mult = c(0, .05)),
 				name = "") +
-			scale_x_continuous(breaks = seq(0, max(ytd_chart_alc_drug$year), 1)) +
+			scale_x_continuous(breaks = seq(0, max(chart_alc_drug$year), 1)) +
 			scale_fill_manual( # for bars
 				name = "",
 				values = c("Yes" = "#D50032", "No" = "#428BCA", "Unknown" = "#4DB848"),
@@ -148,7 +151,7 @@ snippet my_stacked_barchart_suspected_drugalcohol
 
 snippet my_barchart_by_hwyclass
 	# Add column to get road type
-	motor_veh_ytd <- motor_veh_ytd %>%
+	${1:all_crashes} <- ${1:all_crashes} %>%
 		mutate(hwy = dplyr::recode(
 			HWYCLASS, !!!c(
 			"1" = "Local",
@@ -173,11 +176,11 @@ snippet my_barchart_by_hwyclass
 	# Set order of roads for the chart
 	road_factor = c( "Local", "County Trunk", "State Highway", "Interstate Hwy")
 	
-	motor_veh_ytd_byroad <- motor_veh_ytd %>%
+	byroad <- ${1:all_crashes} %>%
 		group_by(year = year(CRSHDATE), hwy)
 		%>% summarise(count = n())
 	
-	motor_veh_ytd_byroad %>% 
+	byroad %>% 
 		ggplot(aes(
 			x = year,
 			y = count,
@@ -202,7 +205,7 @@ snippet my_barchart_by_hwyclass
 			fontface = "bold") +
 			scale_y_continuous(expand = expansion(mult = c(0, .05)),
 				name = "",
-				limits = c(0, max(motor_veh_ytd_byroad$count) + 20)) +
+				limits = c(0, max(byroad$count) + 20)) +
 		scale_x_continuous(breaks = seq(0, 2021, 1)) + # year 0 to 2021, label each year
 		scale_color_manual(values = c( #for geom_text
 			"Local" = "#D50032",
@@ -226,42 +229,41 @@ snippet my_barchart_by_hwyclass
 
 snippet my_heatmap_time_of_day
 # This is for factor
-weekdays <- c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
-
-motor_crashes_1719 %>%
-group_by(DAYNMBR, newtime) %>% 
-summarise(count = n()) %>%
-na.omit(newtime) %>%
-	ggplot(aes(factor(DAYNMBR, level = weekdays), newtime, fill = count)) +
-	geom_tile() +
-	scale_fill_distiller(palette = "Blues", direction = +1) +
-	theme_classic() +
-	theme(
-		legend.title = element_blank(),
-		plot.title = element_markdown(lineheight = 1.1),
-		axis.title.x = element_blank(),
-		axis.title.y = element_blank(),
-		axis.text = element_text(size = 14),
-		legend.text = element_text(size = 14),
-		axis.ticks = element_blank(),
-		axis.line = element_blank()
-	 ) +
-	 scale_x_discrete() +
-	 labs(
-		title = "<span style='font-size:16pt'>
-		<span style='color:#428BCA;'></span> Time of Day of Motorcycle Crashes (2017-2019)
-		</span>"
-	 )
+	weekdays <- c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+	
+	${1:all_crashes} %>%
+	group_by(DAYNMBR, newtime) %>% 
+	summarise(count = n()) %>%
+	na.omit(newtime) %>%
+		ggplot(aes(factor(DAYNMBR, level = weekdays), newtime, fill = count)) +
+		geom_tile() +
+		scale_fill_distiller(palette = "Blues", direction = +1) +
+		theme_classic() +
+		theme(
+			legend.title = element_blank(),
+			plot.title = element_markdown(lineheight = 1.1),
+			axis.title.x = element_blank(),
+			axis.title.y = element_blank(),
+			axis.text = element_text(size = 14),
+			legend.text = element_text(size = 14),
+			axis.ticks = element_blank(),
+			axis.line = element_blank()
+		 ) +
+		 scale_x_discrete() +
+		 labs(
+			title = "<span style='font-size:16pt'>
+			<span style='color:#428BCA;'></span> Time of Day of Motorcycle Crashes (2017-2019)
+			</span>"
+		 )
 
 snippet my_barchart_stacked_age_gender
 	# Assign colors
 	color_map_gender <- c("F"="#D50032", "M"="#428BCA", "U" = "#F9C218")
 
-	motor_persons_age <- motor_persons %>%
-		get_age_groups() %>%
-		filter(year(CRSHDATE) %in% c(2017, 2018, 2019)) %>% as.data.table()
+	persons_age <- ${1:all_persons} %>%
+		get_age_groups() %>% as.data.table()
 		
-	 person <- motor_persons_age[, .(age_group, SEX)]
+	 person <- persons_age[, .(age_group, SEX)]
 	    
 	 age_sex_table <- table(age = person$age_group, sex = person$SEX) %>% as_tibble() # get counts, put in a tibble
 	    
@@ -295,7 +297,7 @@ snippet my_barchart_stacked_age_gender
 	  )  +
 	 scale_y_continuous(expand = expansion(mult = c(0, .05)),
 	                         name = "")  +
-	  # scale_x_continuous(breaks = seq(0, max(ytd_chart_alc_drug$year), 1)) +
+	  # scale_x_continuous(breaks = seq(0, max(age_sex_table$year), 1)) +
 	  scale_fill_manual( # for bars
 	    name = "",
 	    values = color_map_gender,
@@ -309,7 +311,7 @@ snippet my_barchart_stacked_age_gender
 	  )
 	  
 snippet my_make_freq_table_expss
-	table <- all_crashes %>% county_rename() %>% 
+	table <- ${1:all_crashes} %>% county_rename() %>% 
 		apply_labels(
 			CRSHSVR = "Crash Severity",
 			countyname = "County"

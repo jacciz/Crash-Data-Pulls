@@ -3,24 +3,51 @@
 #    _ get crash flags by adding a new column (values of Y or N)
 #    _ get crash times and county name
 
-###### Import Data Functions ###### 
 
+###### Function to Read FST Files ###### 
+# This reads fst files and converts data types so they all match in all db
+# transform data type. the mutate_at and any_of is to mutate only if column exists
+read_fst_for_new_db <- function(file_to_read) {
+  read_fst(file_to_read) %>% mutate_at(dplyr::vars(any_of(
+    c(
+      "MCFLNMBR",
+      "RECDSTAT",
+      "MUNICODE",
+      "CNTYCODE",
+      "POPCLASS",
+      "FARSFATL",
+      "INSSTA",
+      "MCFLNMBR",
+      "BACCODE",
+      "ARBGDPLT",
+      "OT",
+      "OF",
+      "ALCFCTR"
+    )
+  )), as.character) %>%
+    mutate_at(dplyr::vars(any_of("NTFYDATE")), ymd)
+}
+###### Import Data Functions ###### 
 # Puts data in a list of filenames to import
 import_crashes <-
   function(fileloc = file_loc,
            years_selected = years) {
     data_years = paste(years_selected, "crash", sep = "") # combines crashes with years to select data
     crash = paste(fileloc, data_years, ".fst", sep = "") # select data in specified location/format
-    combine_data <-
-      do.call(plyr::rbind.fill, lapply(crash, read_fst)) # reads and combines data
+    combine_data <-  #columns = c("RECDSTAT")
+      do.call(bind_rows, lapply(crash, read_fst_for_new_db)) # reads and combines data
   }
+
 import_vehicles <-
   function(fileloc = file_loc,
            years_selected = years) {
+    # Uses 'years'to find all vehicle fst files with matching year and imports them
     data_years = paste(years_selected, "vehicle", sep = "") # combines crashes with years to select data
     vehicle = paste(fileloc, data_years, ".fst", sep = "") # select data in specified location/format
+    
+    # combines all the years selected, in a loop
     combine_data <-
-      do.call(plyr::rbind.fill, lapply(vehicle, read_fst)) # reads and combines data
+      do.call(bind_rows, lapply(vehicle, read_fst_for_new_db))
   }
 import_persons <-
   function(fileloc = file_loc,
@@ -28,35 +55,63 @@ import_persons <-
     data_years = paste(years_selected, "person", sep = "") # combines crashes with years to select data
     person = paste(fileloc, data_years, ".fst", sep = "") # select data in specified location/format
     combine_data <-
-      do.call(plyr::rbind.fill, lapply(person, read_fst)) # reads and combines data
+      do.call(bind_rows, lapply(person, read_fst_for_new_db)) # reads and combines data
   }
 
 import_crashes_old <-
   function(fileloc = file_loc,
            years_selected = years_old) {
-    data_years = paste(years_selected, "crash", sep = "") # combines crashes with years to select data
+    # get list of crash files to import by combining years with 'crash'
+    # then get list of exact file location
+    data_years = paste(years_selected, "crash", sep = "")
     crash_old = paste(fileloc, data_years, ".fst", sep = "")
+    
+    # this imports data, keeps only crashes in public areas
+    # Then it relabels column names
     import_crashes_old <-
-      do.call(plyr::rbind.fill, lapply(crash_old, read_fst)) %>% filter(
+      do.call(bind_rows, lapply(crash_old, read_fst)) %>% filter(
         ACCDSVR != 'NON-REPORTABLE',
         ACCDLOC == 'INTERSECTION' |
-          ACCDLOC == 'NON-INTERSECTION'
+        ACCDLOC == 'NON-INTERSECTION'
       ) %>% dplyr::select(-ACCDLOC)
     import_crashes_old <-
       setnames(
         import_crashes_old,
-        c("ACCDNMBR", "ACCDDATE", "ACCDMTH", "ACCDTIME", "ACCDSVR", "ACCDTYPE"),
-        c("CRSHNMBR", "CRSHDATE", "CRSHMTH", "CRSHTIME", "CRSHSVR", "CRSHTYPE")
-      )
-    import_crashes_old <-
-      import_crashes_old %>% mutate(CRSHSVR = dplyr::recode(
-        CRSHSVR,
-        !!!c(
-          "PROPERTY DAMAGE" = "Property Damage",
-          "INJURY" = "Injury",
-          "FATAL" = "Fatal"
+        c(
+          "ACCDNMBR",
+          "ACCDDATE",
+          "ACCDMTH",
+          "ACCDTIME",
+          "ACCDSVR",
+          "ACCDTYPE"
+        ),
+        c(
+          "CRSHNMBR",
+          "CRSHDATE",
+          "CRSHMTH",
+          "CRSHTIME_GROUP",
+          "CRSHSVR",
+          "CRSHTYPE"
         )
-      ))
+      )
+    # Rename variables to match new db
+    import_crashes_old <-
+      import_crashes_old %>% mutate(
+        CRSHSVR = dplyr::recode(
+          CRSHSVR,
+          !!!c(
+            "PROPERTY DAMAGE" = "Property Damage",
+            "INJURY" = "Injury",
+            "FATAL" = "Fatal"
+          )
+        ))
+      # Relabels county names to match new db
+      mutate_at(dplyr::vars(any_of(
+        c("URBRURAL", "STPTLNB")
+      )), as.character) %>% 
+      mutate_at(dplyr::vars(any_of("NTFYDATE")), ymd) %>% 
+      mutate_at("CNTYCODE", str_to_title) %>% 
+      mutate(CNTYCODE = ifelse(CNTYCODE == "Fond Du Lac", "Fond du Lac", CNTYCODE))
     return(import_crashes_old)
   }
 import_vehicles_old <-
@@ -65,7 +120,7 @@ import_vehicles_old <-
     data_years = paste(years_selected, "vehicle", sep = "") # combines crashes with years to select data
     vehicle_old = paste(fileloc, data_years, ".fst", sep = "")
     import_vehicles_old <-
-      do.call(plyr::rbind.fill, lapply(vehicle_old, read_fst)) %>% filter(
+      do.call(bind_rows, lapply(vehicle_old, read_fst)) %>% filter(
         ACCDSVR != 'NON-REPORTABLE',
         ACCDLOC == 'INTERSECTION' |
           ACCDLOC == 'NON-INTERSECTION'
@@ -73,8 +128,8 @@ import_vehicles_old <-
     import_vehicles_old <-
       setnames(
         import_vehicles_old,
-        c("ACCDNMBR", "ACCDDATE", "ACCDSVR", "ACCDMTH", "ACCDHOUR"),
-        c("CRSHNMBR", "CRSHDATE", "CRSHSVR", "CRSHMTH", "CRSHHOUR")
+        c("ACCDNMBR", "ACCDDATE", "ACCDSVR", "ACCDMTH", "ACCDHOUR", "AGE"),
+        c("CRSHNMBR", "CRSHDATE", "CRSHSVR", "CRSHMTH", "CRSHHOUR", "AGE_GROUP")
       )
     import_vehicles_old <-
       import_vehicles_old %>% mutate(CRSHSVR = dplyr::recode(
@@ -84,7 +139,9 @@ import_vehicles_old <-
           "INJURY" = "Injury",
           "FATAL" = "Fatal"
         )
-      ))
+      )) %>% 
+      mutate_at("CNTYCODE", str_to_title) %>% 
+      mutate(CNTYCODE = ifelse(CNTYCODE == "Fond Du Lac", "Fond du Lac", CNTYCODE))
     return(import_vehicles_old)
   }
 
@@ -94,21 +151,26 @@ import_persons_old <-
     data_years = paste(years_selected, "person", sep = "") # combines crashes with years to select data
     person_old = paste(fileloc, data_years, ".fst", sep = "")
     import_persons_old <-
-      do.call(plyr::rbind.fill, lapply(person_old, read_fst)) %>% filter(
+      do.call(bind_rows, lapply(person_old, read_fst)) %>% filter(
         ACCDSVR != 'NON-REPORTABLE',
         ACCDLOC == 'INTERSECTION' |
-          ACCDLOC == 'NON-INTERSECTION'
+        ACCDLOC == 'NON-INTERSECTION'
       ) %>% dplyr::select(-ACCDLOC)
     
     import_persons_old <-
       setnames(
         import_persons_old,
-        c("ACCDNMBR", "ACCDDATE", "ACCDMTH", "ACCDSVR", "ACCDHOUR", "INJSVR", "ACCDTYPE"),
-        c("CRSHNMBR", "CRSHDATE", "CRSHMTH", "CRSHSVR", "CRSHHOUR", "WISINJ", "CRSHTYPE")
+        c("ACCDNMBR", "ACCDDATE", "ACCDMTH", "ACCDSVR", "ACCDHOUR", "INJSVR", "ACCDTYPE", "AGE"),
+        c("CRSHNMBR", "CRSHDATE", "CRSHMTH", "CRSHSVR", "CRSHHOUR", "WISINJ", "CRSHTYPE", "AGE_GROUP")
       )
     # all_persons_old <- all_persons_old %>% mutate(ROLE = dplyr::recode(ROLE, !!!c("DR"="Driver", "MO" = "Driver", "MP" = "Driver"))) # not apples to apples
     import_persons_old <-
-      import_persons_old %>% mutate(
+      import_persons_old %>%
+      mutate_at("ZIPCODE", as.character) %>% 
+      mutate_at(dplyr::vars(any_of("NTFYDATE")), ymd) %>% 
+      mutate_at("CNTYCODE", str_to_title) %>% 
+      mutate(CNTYCODE = ifelse(CNTYCODE == "Fond Du Lac", "Fond du Lac", CNTYCODE),
+        ZIPCODE = ifelse(is.na(ZIPCODE), "0", ZIPCODE),
         WISINJ = dplyr::recode(
           na_if(WISINJ, ""),
           !!!c(
@@ -238,23 +300,25 @@ get_older_driver <- function(dataframe) {
 get_seatbelt_flag_by_role <- function(dataframe) {
   sb <-
     dataframe %>% filter((
-      SFTYEQP %in% c("None Used - Vehicle Occupant") |
+      SFTYEQP %in% c("None Used - Vehicle Occupant",
+                     "NONE USED-VEHICLE OCCUPANT") |
         (-(
           EYEPROT %in% c("Yes: Worn", "Yes: Windshield", "Yes: Worn and Windshield")
         ) & HLMTUSE %in% c("No"))
-    )) %>% select(CRSHNMBR, UNITNMBR, ROLE) %>% mutate(seatbelt_flag = "Y")
-  return(left_join(dataframe, sb, by = c("CRSHNMBR", "UNITNMBR", "ROLE")) %>% mutate(seatbelt_flag = replace_na(seatbelt_flag, "N")))
+    )) %>% select(CRSHNMBR, UNITNMBR, ROLE) %>% mutate(seatbelt_flag_role = "Y")
+  return(left_join(dataframe, sb, by = c("CRSHNMBR", "UNITNMBR", "ROLE")) %>% mutate(seatbelt_flag_role = replace_na(seatbelt_flag_role, "N")))
 }
 
 get_seatbelt_flag_by_unit <- function(dataframe) {
   sb <-
     dataframe %>% filter((
-      SFTYEQP %in% c("None Used - Vehicle Occupant") |
+      SFTYEQP %in% c("None Used - Vehicle Occupant",
+                     "NONE USED-VEHICLE OCCUPANT") |
         (-(
           EYEPROT %in% c("Yes: Worn", "Yes: Windshield", "Yes: Worn and Windshield")
         ) & HLMTUSE %in% c("No"))
-    )) %>% select(CRSHNMBR, UNITNMBR) %>% mutate(seatbelt_flag = "Y")
-  return(left_join(dataframe, sb, by = c("CRSHNMBR", "UNITNMBR")) %>% mutate(seatbelt_flag = replace_na(seatbelt_flag, "N")))
+    )) %>% select(CRSHNMBR, UNITNMBR) %>% mutate(seatbelt_flag_unit = "Y")
+  return(left_join(dataframe, sb, by = c("CRSHNMBR", "UNITNMBR")) %>% mutate(seatbelt_flag_unit = replace_na(seatbelt_flag_unit, "N")))
 }
 
 ###### Get Crash Time Function ###### 
@@ -277,6 +341,7 @@ get_age_groups <- function(dataframe) {
     include.lowest = T
   ))
 }
+
 ###### Find Motorcyclists ###### 
 get_motorcycle_persons <- function(person_df, vehicle_df) {
   motorcycle <-

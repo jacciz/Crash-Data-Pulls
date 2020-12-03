@@ -15,7 +15,7 @@ This is a template to do a data pull. You must select the years of the data.  Th
 
 ### Import data functions for old db:
 + import_crashes_old(fileloc = file_loc, years_selected = years_old) - also for vehicle and persons  
-+ These also renames columns (and some variables) "ACCDNMBR", "ACCDDATE", "ACCDMTH", "ACCDSVR", "ACCDHOUR", "INJSVR", "ACCDTYPE" to match new db  
++ These also renames columns (and some variables) "ACCDNMBR", "ACCDDATE", "ACCDMTH", "ACCDSVR", "ACCDHOUR", "INJSVR", "ACCDTYPE" to match new dB. Also "AGE" to "AGE_GROUP", "ACCDTIME" to "CRSHTIME_GROUP"
 
 ### Crash flag functions add a flag column with either 'Y' or 'N'. These functions and their flag column are:
 + get_deer_crashes(crash_df)            - deer_flag (old & new db)  
@@ -24,15 +24,15 @@ This is a template to do a data pull. You must select the years of the data.  Th
 + get_speed_flag(person_df)             - speed_flag (old & new db)  
 + get_teen_driver(person_df)            - teendriver_flag (new db)  
 + get_older_driver(person_df)           - olderdriver_flag (new db)  
-+ get_seatbelt_flag_by_role(person_df)  - seatbelt_flag (new db)    # Note: someone in that unit & role did not wear a seatbelt, i.e. a passenger or a driver  
-+ get_seatbelt_flag_by_unit(person_df)  - seatbelt_flag (new db)    # Note: someone in that unit did not wear a seatbelt  
++ get_seatbelt_flag_by_role(person_df)  - seatbelt_flag_role (new db)    # Note: someone in that unit & role did not wear a seatbelt, i.e. a passenger or a driver  
++ get_seatbelt_flag_by_unit(person_df)  - seatbelt_flag_unit (new db)    # Note: someone in that unit did not wear a seatbelt  
 
 ### Functions that add a column (only for new db):
 + get_crash_times(any_df)               - newtime  
 + get_age_groups(person_df)             - age_group  
 + county_rename(any_df)                 - countyname  
 + bin_injury_persons(person_df)         - inj - bins into Killed, Injured, No Injury  
-+ get_drug_alc_suspected                - drug_alc_susp
++ get_drug_alc_suspected                - drug_alc_susp - bins into Yes, No, Unknown
 
 ### Other functions:
 + get_motorcycle_persons(person_df, vehicle_df) - selects motorcyclists (old & new db)  
@@ -64,12 +64,14 @@ knitr::opts_knit$set(root.dir = '/...')
 library(dplyr)        # to subset, filter, summarize data, in tidyverse, replaces plyr
 library(ggplot2)      # create charts
 library(tidyverse)    # to select, filter data, for data science
-# library(data.table) # Data type
 library(lubridate)    # for working with dates, need this for data import
-# library(janitor)    # make tabulation tables, tabyl
 library(expss)        # SPSS style package
 library(fst)          # Data type of db data
 library(ggtext)       # HTML for charts
+# library(data.table)   # Data type
+# library(janitor)      # make tabyl, adorn_totals
+# library(rlang)        # {{variable}} to make ggplot2 functions
+# library(kableExtra)   # styling for HTML
 
 source("W:/HSSA/Keep/Jaclyn Ziebert/R/Crash-Data-Pulls/Crash_Analysis_Functions.R") # Source of all the functions
 ```
@@ -77,34 +79,51 @@ source("W:/HSSA/Keep/Jaclyn Ziebert/R/Crash-Data-Pulls/Crash_Analysis_Functions.
 ```{r What to select}
 file_loc = "C:/CSV/csv_from_sas/fst/" # location of FST crash database files to load
 years = c("17", "18", "19") # select years to import, must be in this format
-years_old = c( "16") # select years to import, 2016 and before
+years_old = c("15", "16") # select years to import, 2016 and before
 ```
 
 ```{r Run import and combine old/new data}
 # This imports new databases - you may choose to select certain columns
-all_crashes <- import_crashes() #%>% select(CRSHNMBR, CRSHDATE, CNTYCODE, CRSHSVR, CRSHTYPE, starts_with("ANMLTY")) # columns to select
-all_vehicles <- import_vehicles() #%>% select(CRSHNMBR, CRSHDATE, UNITNMBR, VEHTYPE)
-all_persons <- import_persons() #%>% select(CRSHNMBR, CNTYCODE, CRSHDATE, UNITNMBR, DRVRFLAG, HLMTUSE, EYEPROT, SFTYEQP, ROLE, SEX, AGE, DISTACT, starts_with("DRVRPC"), starts_with("STATNM"), starts_with("DRVRDS"))
+crashes_new <- import_crashes() #%>% select(CRSHNMBR, CRSHDATE, CNTYCODE, CRSHSVR, CRSHTYPE, starts_with("ANMLTY")) # columns to select
+vehicles_new <- import_vehicles() #%>% select(CRSHNMBR, CRSHDATE, UNITNMBR, VEHTYPE)
+persons_new <- import_persons() #%>% select(CRSHNMBR, CNTYCODE, CRSHDATE, UNITNMBR, DRVRFLAG, HLMTUSE, EYEPROT, SFTYEQP, ROLE, SEX, AGE, DISTACT, starts_with("DRVRPC"), starts_with("STATNM"), starts_with("DRVRDS"))
 
 # This imports old databases, does remove parking lot crashes and relabels columns
-all_crashes_old <- import_crashes_old()
-all_vehicles_old <- import_vehicles_old()
-all_persons_old <- import_persons_old()
+crashes_old <- import_crashes_old()
+vehicles_old <- import_vehicles_old()
+persons_old <- import_persons_old()
 
 # To combine old and new db
-# crashes <- bind_cols(all_crashes_old, all_crashes)
-# vehicles <- bind_cols(all_vehicles_old, all_vehicles)
-# persons <- bind_cols(all_persons_old, all_persons)
+crashes <- bind_rows(all_crashes_old, all_crashes)
+vehicles <- bind_rows(all_vehicles_old, all_vehicles)
+persons <- bind_rows(all_persons_old, all_persons)
+```
+
+```{r tabyl and dt}
+library(janitor)
+# library(vtree)
+library(CGPfunctions)
+
+tabyl(crashes_new, var1 = CNTYCODE, var2 = CRSHSVR, var3 = ALCFLAG)
+PlotXTabs(crashes_new, TOTUNIT, CRSHSVR)
+
+# https://www.infoworld.com/video/101699/6-r-data-table-symbols-and-operators-you-should-know
+crash_dt <- crashes_new %>% as.data.table()
+crash_dt[ , .N, by = .(CRSHSVR, year = year(CRSHDATE))][order(year, N)]
+
+all_crashes %>% count(CRSHSVR, year = year(CRSHDATE)) %>% arrange(year, n)
+
+crash_dt[ (CRSHSVR %chin% c('Fatal'))]
 ```
 
 ```{r Specific stuff}
 # remove duplicates
-# motorcycles[!duplicated(motorcycles[, c('CRSHNMBR')]),]
+# df[!duplicated(df[, c('CRSHNMBR')]),]
 
 # DRVRPC - put data in long format to count frequency
-# all_persons %>% select(starts_with("DRVRPC")) %>% pivot_longer(starts_with("DRVRPC")) %>% filter(value !='') 
+# persons_new %>% select(starts_with("DRVRPC")) %>% pivot_longer(starts_with("DRVRPC")) %>% filter(value !='') 
 ```
 ```{r Create a Table to Knit HTML}
 # https://cran.r-project.org/web/packages/kableExtra/vignettes/awesome_table_in_html.html#Overview
-# all_crashes %>% filter(CYCLFLAG == "Y") %>% group_by(year = year(CRSHDATE), URBRURAL) %>% summarise(count = n()) %>% pivot_wider(names_from = URBRURAL, values_from = count) %>% adorn_totals("col") %>% kbl(caption = "Title") %>%  kable_styling()
+# crashes_new %>% filter(CYCLFLAG == "Y") %>% group_by(year = year(CRSHDATE), URBRURAL) %>% summarise(count = n()) %>% pivot_wider(names_from = URBRURAL, values_from = count) %>% adorn_totals("col") %>% kbl(caption = "Title") %>% kable_styling()
 ```
