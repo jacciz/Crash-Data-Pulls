@@ -68,6 +68,7 @@ library(lubridate)    # for working with dates, need this for data import
 library(expss)        # SPSS style package
 library(fst)          # Data type of db data
 library(ggtext)       # HTML for charts
+library(data.table)   # db files are loaded as a data table, need this package
 # library(data.table)   # Data type
 # library(janitor)      # make tabyl, adorn_totals
 # library(rlang)        # {{variable}} to make ggplot2 functions
@@ -78,13 +79,13 @@ source("W:/HSSA/Keep/Jaclyn Ziebert/R/Crash-Data-Pulls/Crash_Analysis_Functions.
 
 ```{r What to select}
 file_loc = "C:/CSV/csv_from_sas/fst/" # location of FST crash database files to load
-years = c("17", "18", "19") # select years to import, must be in this format
+years = c("19") # select years to import, must be in this format
 years_old = c("15", "16") # select years to import, 2016 and before
 ```
 
 ```{r Run import and combine old/new data}
 # This imports new databases - you may choose to select certain columns
-crashes_new <- import_crashes() #%>% select(CRSHNMBR, CRSHDATE, CNTYCODE, CRSHSVR, CRSHTYPE, starts_with("ANMLTY")) # columns to select
+crashes_new <- import_crashes() # %>% select(CRSHNMBR, CRSHDATE, CNTYCODE, CRSHSVR, CRSHTYPE, starts_with("ANMLTY")) # columns to select
 vehicles_new <- import_vehicles() #%>% select(CRSHNMBR, CRSHDATE, UNITNMBR, VEHTYPE)
 persons_new <- import_persons() #%>% select(CRSHNMBR, CNTYCODE, CRSHDATE, UNITNMBR, DRVRFLAG, HLMTUSE, EYEPROT, SFTYEQP, ROLE, SEX, AGE, DISTACT, starts_with("DRVRPC"), starts_with("STATNM"), starts_with("DRVRDS"))
 
@@ -94,9 +95,17 @@ vehicles_old <- import_vehicles_old()
 persons_old <- import_persons_old()
 
 # To combine old and new db
-crashes <- bind_rows(all_crashes_old, all_crashes)
-vehicles <- bind_rows(all_vehicles_old, all_vehicles)
-persons <- bind_rows(all_persons_old, all_persons)
+crashes <- bind_rows(crashes_old, crashes_new)
+vehicles <- bind_rows(vehicles_old, vehicles_new)
+persons <- bind_rows(persons_old, persons_new)
+```
+
+```{r}
+speed_drivers <- persons_new %>% get_speed_flag() %>% filter(speed_flag == "Y") %>% select(CRSHNMBR) %>% distinct()
+
+crashes_new %>%  inner_join(., speed_drivers, by = "CRSHNMBR") %>% 
+  select(CRSHNMBR, TOTINJ, TOTFATL, starts_with("RDCOND")) %>%
+  filter_all(any_vars(grepl("Snow|Ice|Slush", .))) %>% count(sum(TOTINJ), sum(TOTFATL))
 ```
 
 ```{r tabyl and dt}
@@ -104,7 +113,7 @@ library(janitor)
 # library(vtree)
 library(CGPfunctions)
 
-tabyl(crashes_new, var1 = CNTYCODE, var2 = CRSHSVR, var3 = ALCFLAG)
+tabyl(crashes_new, var1 = CNTYCODE, var2 = CRSHSVR)
 PlotXTabs(crashes_new, TOTUNIT, CRSHSVR)
 
 # https://www.infoworld.com/video/101699/6-r-data-table-symbols-and-operators-you-should-know

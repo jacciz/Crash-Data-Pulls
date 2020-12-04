@@ -3,14 +3,13 @@
 #    _ get crash flags by adding a new column (values of Y or N)
 #    _ get crash times and county name
 
-
 ###### Function to Read FST Files ###### 
-# This reads fst files and converts data types so they all match in all db
-# transform data type. the mutate_at and any_of is to mutate only if column exists
+# This reads fst files and converts data types so they all match for all db
+# I'm using mutate_at and any_of to change class type only if column exists
 read_fst_for_new_db <- function(file_to_read) {
-  read_fst(file_to_read) %>% mutate_at(dplyr::vars(any_of(
-    c(
-      "MCFLNMBR",
+  read_fst(file_to_read, as.data.table = TRUE, columns = col_to_select) %>%
+    mutate_at(dplyr::vars(any_of(
+    c("MCFLNMBR",
       "RECDSTAT",
       "MUNICODE",
       "CNTYCODE",
@@ -22,10 +21,59 @@ read_fst_for_new_db <- function(file_to_read) {
       "ARBGDPLT",
       "OT",
       "OF",
-      "ALCFCTR"
+      "ALCFCTR",
+      "OWNRTYP",
+      "INSURED",
+      "TKBSPRMT",
+      "NTFYDATE",
+      "DIDJUR",
+      "ALCSUSP",
+      "DRUGSUSP",
+      "CARRID"
     )
-  )), as.character) %>%
-    mutate_at(dplyr::vars(any_of("NTFYDATE")), ymd)
+  )), as.character) %>% 
+    mutate_at(dplyr::vars(starts_with("HAZCLSS")), as.character)
+    # mutate_at(dplyr::vars(any_of("NTFYDATE")), ymd)
+}
+
+read_fst_for_old_db <- function(file_to_read) {
+  read_fst(file_to_read, as.data.table = TRUE) %>%       # Relabels county names to match new db
+    mutate_at(dplyr::vars(any_of(c(
+      "URBRURAL", "STPTLNB", "ZIPCODE", "NTFYDATE", "TKBSPRMT", "MCFLNMBR", "DOCTNMBR"
+    ))), as.character) %>%
+    mutate_at(dplyr::vars(starts_with("DMGAR")), as.character) %>% 
+    # mutate_at(dplyr::vars(any_of("NTFYDATE")), ymd) %>%
+    mutate_at("CNTYCODE", str_to_title) %>%
+    mutate(
+      CNTYCODE = ifelse(CNTYCODE == "Fond Du Lac", "Fond du Lac", CNTYCODE))
+      # ZIPCODE = ifelse(is.na(ZIPCODE), "0", ZIPCODE)
+}
+
+###### Function to Relabel Variables in Old Db ######
+# These are used when reading FST files
+relabel_CRSHSVR_old_db <- function(df) {
+  df %>%
+    mutate(CRSHSVR = dplyr::recode(
+      CRSHSVR,
+      !!!c(
+        "PROPERTY DAMAGE" = "Property Damage",
+        "INJURY" = "Injury",
+        "FATAL" = "Fatal")
+    ))
+}
+
+relabel_WISINJ_old_db <- function(df) {
+  df %>%
+    mutate(WISINJ = dplyr::recode(
+      na_if(WISINJ, ""),
+      !!!c(
+        "INCAPACITATING" = "Suspected Serious Injury",
+        "NONINCAPACITATING" = "Suspected Minor Injury",
+        "POSSIBLE" = "Possible Injury",
+        "KILLED" = "Fatal Injury",
+        .missing = "No Apparent Injury"
+      )
+    ))
 }
 ###### Import Data Functions ###### 
 # Puts data in a list of filenames to import
@@ -49,6 +97,7 @@ import_vehicles <-
     combine_data <-
       do.call(bind_rows, lapply(vehicle, read_fst_for_new_db))
   }
+
 import_persons <-
   function(fileloc = file_loc,
            years_selected = years) {
@@ -69,7 +118,7 @@ import_crashes_old <-
     # this imports data, keeps only crashes in public areas
     # Then it relabels column names
     import_crashes_old <-
-      do.call(bind_rows, lapply(crash_old, read_fst)) %>% filter(
+      do.call(bind_rows, lapply(crash_old, read_fst_for_old_db)) %>% filter(
         ACCDSVR != 'NON-REPORTABLE',
         ACCDLOC == 'INTERSECTION' |
         ACCDLOC == 'NON-INTERSECTION'
@@ -95,32 +144,16 @@ import_crashes_old <-
         )
       )
     # Rename variables to match new db
-    import_crashes_old <-
-      import_crashes_old %>% mutate(
-        CRSHSVR = dplyr::recode(
-          CRSHSVR,
-          !!!c(
-            "PROPERTY DAMAGE" = "Property Damage",
-            "INJURY" = "Injury",
-            "FATAL" = "Fatal"
-          )
-        ))
-      # Relabels county names to match new db
-      mutate_at(dplyr::vars(any_of(
-        c("URBRURAL", "STPTLNB")
-      )), as.character) %>% 
-      mutate_at(dplyr::vars(any_of("NTFYDATE")), ymd) %>% 
-      mutate_at("CNTYCODE", str_to_title) %>% 
-      mutate(CNTYCODE = ifelse(CNTYCODE == "Fond Du Lac", "Fond du Lac", CNTYCODE))
-    return(import_crashes_old)
+    return(import_crashes_old %>% relabel_CRSHSVR_old_db())
   }
+
 import_vehicles_old <-
   function(fileloc = file_loc,
            years_selected = years_old) {
     data_years = paste(years_selected, "vehicle", sep = "") # combines crashes with years to select data
     vehicle_old = paste(fileloc, data_years, ".fst", sep = "")
     import_vehicles_old <-
-      do.call(bind_rows, lapply(vehicle_old, read_fst)) %>% filter(
+      do.call(bind_rows, lapply(vehicle_old, read_fst_for_old_db)) %>% filter(
         ACCDSVR != 'NON-REPORTABLE',
         ACCDLOC == 'INTERSECTION' |
           ACCDLOC == 'NON-INTERSECTION'
@@ -131,18 +164,7 @@ import_vehicles_old <-
         c("ACCDNMBR", "ACCDDATE", "ACCDSVR", "ACCDMTH", "ACCDHOUR", "AGE"),
         c("CRSHNMBR", "CRSHDATE", "CRSHSVR", "CRSHMTH", "CRSHHOUR", "AGE_GROUP")
       )
-    import_vehicles_old <-
-      import_vehicles_old %>% mutate(CRSHSVR = dplyr::recode(
-        CRSHSVR,
-        !!!c(
-          "PROPERTY DAMAGE" = "Property Damage",
-          "INJURY" = "Injury",
-          "FATAL" = "Fatal"
-        )
-      )) %>% 
-      mutate_at("CNTYCODE", str_to_title) %>% 
-      mutate(CNTYCODE = ifelse(CNTYCODE == "Fond Du Lac", "Fond du Lac", CNTYCODE))
-    return(import_vehicles_old)
+    return(import_vehicles_old %>% relabel_CRSHSVR_old_db())
   }
 
 import_persons_old <-
@@ -151,7 +173,7 @@ import_persons_old <-
     data_years = paste(years_selected, "person", sep = "") # combines crashes with years to select data
     person_old = paste(fileloc, data_years, ".fst", sep = "")
     import_persons_old <-
-      do.call(bind_rows, lapply(person_old, read_fst)) %>% filter(
+      do.call(bind_rows, lapply(person_old, read_fst_for_old_db)) %>% filter(
         ACCDSVR != 'NON-REPORTABLE',
         ACCDLOC == 'INTERSECTION' |
         ACCDLOC == 'NON-INTERSECTION'
@@ -164,33 +186,9 @@ import_persons_old <-
         c("CRSHNMBR", "CRSHDATE", "CRSHMTH", "CRSHSVR", "CRSHHOUR", "WISINJ", "CRSHTYPE", "AGE_GROUP")
       )
     # all_persons_old <- all_persons_old %>% mutate(ROLE = dplyr::recode(ROLE, !!!c("DR"="Driver", "MO" = "Driver", "MP" = "Driver"))) # not apples to apples
-    import_persons_old <-
-      import_persons_old %>%
-      mutate_at("ZIPCODE", as.character) %>% 
-      mutate_at(dplyr::vars(any_of("NTFYDATE")), ymd) %>% 
-      mutate_at("CNTYCODE", str_to_title) %>% 
-      mutate(CNTYCODE = ifelse(CNTYCODE == "Fond Du Lac", "Fond du Lac", CNTYCODE),
-        ZIPCODE = ifelse(is.na(ZIPCODE), "0", ZIPCODE),
-        WISINJ = dplyr::recode(
-          na_if(WISINJ, ""),
-          !!!c(
-            "INCAPACITATING" = "Suspected Serious Injury",
-            "NONINCAPACITATING" = "Suspected Minor Injury",
-            "POSSIBLE" = "Possible Injury",
-            "KILLED" = "Fatal Injury",
-            .missing = "No Apparent Injury"
-          )
-        ),
-        CRSHSVR = dplyr::recode(
-          CRSHSVR,
-          !!!c(
-            "PROPERTY DAMAGE" = "Property Damage",
-            "INJURY" = "Injury",
-            "FATAL" = "Fatal"
-          )
-        )
-      )
-    return(import_persons_old)
+    return(import_persons_old %>%
+             relabel_CRSHSVR_old_db() %>%
+             relabel_WISINJ_old_db())
   }
 
 ###### Crash Flag Functions ######
@@ -205,7 +203,8 @@ get_deer_crashes <- function(dataframe) {
     ) & apply(., 1, function(thisrow)
       any(thisrow %in% "Deer"))
     ) | CRSHTYPE == "DEER") %>% select(CRSHNMBR) %>% mutate(deer_flag = "Y")
-  return(left_join(dataframe, deer, by = "CRSHNMBR") %>% mutate(deer_flag = replace_na(deer_flag, "N")))
+  return(left_join(dataframe, deer, by = "CRSHNMBR") %>%
+           mutate(deer_flag = replace_na(deer_flag, "N")))
 }
 
 get_distracted_driver_flag <- function(dataframe) {
@@ -366,6 +365,7 @@ bin_injury_persons <- function(person_df) {
         "No Apparent Injury" = "No Injury"
       )))
 }
+
 ###### Find Drug/Alcohol Suspected ######
 get_drug_alc_suspected <- function(person_df) {
   person_df %>% mutate(ALCSUSP = dplyr::recode(ALCSUSP, !!!c(
