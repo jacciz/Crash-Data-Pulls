@@ -11,7 +11,7 @@ This is a template to do a data pull. You must select the years of the data.  Th
 ## Here are the functions in Crash_Analysis_Functions.R
 
 ### Import data functions for new db:
-+ import_crashes(fileloc = file_loc, years_selected = years)         - also for vehicle and persons  
++ import_crashes(fileloc = file_loc, years_selected = years, selected_columns = crashes_columns)         - also for vehicle and persons  
 
 ### Import data functions for old db:
 + import_crashes_old(fileloc = file_loc, years_selected = years_old) - also for vehicle and persons  
@@ -39,7 +39,7 @@ This is a template to do a data pull. You must select the years of the data.  Th
 
 ## There also snippets which are chunks of code (Data_Pull_Snippets.snippets).
 
-### These include:
+### These snippets include:
 + my_barchart_inj_killed_by_year  
 + my_barchart_mostharm_by_crshsvr_percent  
 + my_stacked_barchart_suspected_drugalcohol  
@@ -69,7 +69,6 @@ library(expss)        # SPSS style package
 library(fst)          # Data type of db data
 library(ggtext)       # HTML for charts
 library(data.table)   # db files are loaded as a data table, need this package
-# library(data.table)   # Data type
 # library(janitor)      # make tabyl, adorn_totals
 # library(rlang)        # {{variable}} to make ggplot2 functions
 # library(kableExtra)   # styling for HTML
@@ -79,17 +78,26 @@ source("W:/HSSA/Keep/Jaclyn Ziebert/R/Crash-Data-Pulls/Crash_Analysis_Functions.
 
 ```{r What to select}
 file_loc = "C:/CSV/csv_from_sas/fst/" # location of FST crash database files to load
-years = c("19") # select years to import, must be in this format
+file_loc_narr = "C:/CSV/csv_from_sas/from_sas_csv/" # location of CSVs for narratives
+# years = c("17", "19") # select years to import, must be in this format
 years_old = c("15", "16") # select years to import, 2016 and before
+
+# Choose variables to select or keep empty - c()
+crashes_columns = c("CRSHNMBR", "CRSHDATE", "CNTYCODE", "CRSHSVR", "CRSHTYPE", paste0("ANMLTY", formatC(seq(1, 7), digits = 0, width = 2, flag = "0")))
+vehicles_columns = c("CRSHNMBR", "CRSHDATE", "UNITNMBR", "VEHTYPE")
+persons_columns = c("CRSHNMBR", "CNTYCODE", "CRSHDATE", "UNITNMBR", "DRVRFLAG", "HLMTUSE", "EYEPROT", "SFTYEQP", "ROLE", "SEX", "AGE", "DISTACT", paste0("DRVRPC", formatC(seq(1, 20), digits = 0, width = 2, flag = "0"))) # starts_with("STATNM"), starts_with("DRVRDS"))
 ```
 
 ```{r Run import and combine old/new data}
-# This imports new databases - you may choose to select certain columns
-crashes_new <- import_crashes() # %>% select(CRSHNMBR, CRSHDATE, CNTYCODE, CRSHSVR, CRSHTYPE, starts_with("ANMLTY")) # columns to select
-vehicles_new <- import_vehicles() #%>% select(CRSHNMBR, CRSHDATE, UNITNMBR, VEHTYPE)
-persons_new <- import_persons() #%>% select(CRSHNMBR, CNTYCODE, CRSHDATE, UNITNMBR, DRVRFLAG, HLMTUSE, EYEPROT, SFTYEQP, ROLE, SEX, AGE, DISTACT, starts_with("DRVRPC"), starts_with("STATNM"), starts_with("DRVRDS"))
+# Imports new databases - you may choose to select certain columns - parameters are file_loc, years, and crashes_columns
+crashes_new <- import_crashes()
+vehicles_new <- import_vehicles()
+persons_new <- import_persons()
 
-# This imports old databases, does remove parking lot crashes and relabels columns
+# Import crash narratives (new db only)
+# narratives <- import_narratives_csv()
+
+# Imports old databases, does remove parking lot crashes and relabels columns
 crashes_old <- import_crashes_old()
 vehicles_old <- import_vehicles_old()
 persons_old <- import_persons_old()
@@ -100,29 +108,20 @@ vehicles <- bind_rows(vehicles_old, vehicles_new)
 persons <- bind_rows(persons_old, persons_new)
 ```
 
-```{r}
-speed_drivers <- persons_new %>% get_speed_flag() %>% filter(speed_flag == "Y") %>% select(CRSHNMBR) %>% distinct()
-
-crashes_new %>%  inner_join(., speed_drivers, by = "CRSHNMBR") %>% 
-  select(CRSHNMBR, TOTINJ, TOTFATL, starts_with("RDCOND")) %>%
-  filter_all(any_vars(grepl("Snow|Ice|Slush", .))) %>% count(sum(TOTINJ), sum(TOTFATL))
-```
-
 ```{r tabyl and dt}
 library(janitor)
 # library(vtree)
 library(CGPfunctions)
 
 tabyl(crashes_new, var1 = CNTYCODE, var2 = CRSHSVR)
-PlotXTabs(crashes_new, TOTUNIT, CRSHSVR)
+PlotXTabs(crashes_new, ANMLTY01, CRSHSVR)
 
 # https://www.infoworld.com/video/101699/6-r-data-table-symbols-and-operators-you-should-know
-crash_dt <- crashes_new %>% as.data.table()
-crash_dt[ , .N, by = .(CRSHSVR, year = year(CRSHDATE))][order(year, N)]
+crashes_new[ , .N, by = .(CRSHSVR, year = year(CRSHDATE))][order(year, N)]
 
-all_crashes %>% count(CRSHSVR, year = year(CRSHDATE)) %>% arrange(year, n)
+crashes_new %>% count(CRSHSVR, year = year(CRSHDATE)) %>% arrange(year, n)
 
-crash_dt[ (CRSHSVR %chin% c('Fatal'))]
+crashes_new[CRSHSVR %chin% c('Fatal'), ]
 ```
 
 ```{r Specific stuff}

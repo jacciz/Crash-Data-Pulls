@@ -3,11 +3,19 @@
 #    _ get crash flags by adding a new column (values of Y or N)
 #    _ get crash times and county name
 
-###### Function to Read FST Files ###### 
+###### Function to Read FST Files ######
+
+# Read the first row to find which columns actually exists, returns columns that exist
+read_cols <- function(file_name, colsToKeep) {
+  header <- read_fst(file_name, to = 1)
+  subset(colsToKeep, colsToKeep %in% colnames(header))
+}
+
 # This reads fst files and converts data types so they all match for all db
 # I'm using mutate_at and any_of to change class type only if column exists
-read_fst_for_new_db <- function(file_to_read) {
-  read_fst(file_to_read, as.data.table = TRUE, columns = col_to_select) %>%
+read_fst_for_new_db <- function(file_to_read, col_to_select) {
+  found_columns <- read_cols(file_to_read, col_to_select)
+  read_fst(file_to_read, as.data.table = TRUE, columns = found_columns ) %>%
     mutate_at(dplyr::vars(any_of(
     c("MCFLNMBR",
       "RECDSTAT",
@@ -79,32 +87,44 @@ relabel_WISINJ_old_db <- function(df) {
 # Puts data in a list of filenames to import
 import_crashes <-
   function(fileloc = file_loc,
-           years_selected = years) {
+           years_selected = years,
+           selected_columns = crashes_columns) {
     data_years = paste(years_selected, "crash", sep = "") # combines crashes with years to select data
     crash = paste(fileloc, data_years, ".fst", sep = "") # select data in specified location/format
-    combine_data <-  #columns = c("RECDSTAT")
-      do.call(bind_rows, lapply(crash, read_fst_for_new_db)) # reads and combines data
+    combine_data <-  
+      do.call(bind_rows, lapply(crash, read_fst_for_new_db, selected_columns)) # reads and combines data
   }
 
 import_vehicles <-
   function(fileloc = file_loc,
-           years_selected = years) {
+           years_selected = years,
+           selected_columns = vehicles_columns) {
     # Uses 'years'to find all vehicle fst files with matching year and imports them
     data_years = paste(years_selected, "vehicle", sep = "") # combines crashes with years to select data
     vehicle = paste(fileloc, data_years, ".fst", sep = "") # select data in specified location/format
     
     # combines all the years selected, in a loop
     combine_data <-
-      do.call(bind_rows, lapply(vehicle, read_fst_for_new_db))
+      do.call(bind_rows, lapply(vehicle, read_fst_for_new_db, selected_columns))
   }
 
 import_persons <-
   function(fileloc = file_loc,
-           years_selected = years) {
+           years_selected = years,
+           selected_columns = persons_columns) {
     data_years = paste(years_selected, "person", sep = "") # combines crashes with years to select data
     person = paste(fileloc, data_years, ".fst", sep = "") # select data in specified location/format
     combine_data <-
-      do.call(bind_rows, lapply(person, read_fst_for_new_db)) # reads and combines data
+      do.call(bind_rows, lapply(person, read_fst_for_new_db, selected_columns)) # reads and combines data
+  }
+
+import_narratives_csv <-
+  function(fileloc = file_loc_narr,
+           years_selected = years) {
+    data_years = paste(years_selected, "narrative", sep = "") # combines crashes with years to select data
+    narrative = paste(fileloc, data_years, ".csv", sep = "") # select data in specified location/format
+    combine_data <-  #columns = c("RECDSTAT")
+      do.call(bind_rows, lapply(narrative, read.csv)) # reads and combines data
   }
 
 import_crashes_old <-

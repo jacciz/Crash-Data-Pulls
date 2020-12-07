@@ -4,7 +4,10 @@ library(haven)
 library(dplyr)
 
 # Location of narrative and format
-myfiles = "//mad00fpg/n6public/satteson/crash_data/SAS/Crash/crash2019/narrative.sas7bdat"
+# myfiles = "//mad00fpg/n6public/satteson/crash_data/SAS/Crash/crash2019/narrative.sas7bdat"
+
+# For 2020
+myfiles = "//mad00fpg/n6public/satteson/crash_data/SAS/Daily/crash2020/narrative.sas7bdat"
 format = "//mad00fpg/n6public/satteson/crash_data/SAS/formats/CrashDB.sas7bcat"
 
 
@@ -28,5 +31,5 @@ do_fmt <- function(x, fmt) {
 openfile <- read_sas(myfiles, catalog_file = format)
 openfile[] <- lapply(openfile, do_fmt)
   
-write.csv(openfile, "C:/CSV/csv_from_sas/from_sas_csv/19narrative.csv")
+write.csv(openfile, "C:/CSV/csv_from_sas/from_sas_csv/20narrative.csv")
 # write_fst(openfile, path = paste0(filesave,filename,".fst"))
