@@ -1,14 +1,15 @@
 These scripts make data pull requests and data analysis faster and easier.
 There is also a crash data pull template that is an outline to do quick data pulls.
 I created many functions that:
-- Convert data from SAS to R-friendly format (FST)
-- Import data from old and new databases in this FST format, which also relabels some old db variables to merge with new db
+- Convert data from SAS to R-friendly format (.FST)
+- Import data from old and new databases in this .FST format, which also relabels some old db variables to match with new db
 - Combine old and new databases into a single data frame
 - Get crash flags (i.e. deer, teen driver)
 - Bin by age group and crash time
 - and also snippets (i.e. code chunks)
 
 ## 'Crash_Analysis_Functions.R'
+These are all functions which are loaded into the template.
 
 ### Import data functions for new db:
 + import_crashes(fileloc = file_loc, years_selected = years, selected_columns = crashes_columns)         - also for vehicle and persons  
@@ -59,13 +60,13 @@ There are snippets for making charts, making tables, importing mapping data, and
 + my_load_county_map_data  
 
 ## 'Save from CSV to FST Batch.R'
-This script will batch open CSV files in file_loc, put it in a df, export as fst with filename (i.e. 17vehicle)
+This script will batch open CSV files in file_loc, put it in a df, export as .FST with filename (i.e. 17vehicle)
 
 ## 'Save Crash Narratives.R'
-This script will open SAS narrative files, put it in a df, export as fst as a shortened names (i.e. 17narrative)
+This script will open SAS narrative files, put it in a df, export as .FST as a shortened name (i.e. 17narrative)
 
 ## Export SAS to FST Script
-Powershell program that will update current year crash data. It runs a SAS script and an R script to export data into fst format.
+This folder contains a Powershell program that will update current year crash data. It runs a SAS script and an R script to export data into a .FST.
 
 ## 'Export to CSV.sas' and 'Export to CSV 2016 Prior.sas'
-Save SAS files as a CSV to a local location
+Save SAS files as a .CSV to a local location. These CSVs will be used for 'Save from CSV to FST Batch.R'
