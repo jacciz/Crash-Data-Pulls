@@ -1,18 +1,22 @@
-These scripts make data pull requests and data analysis faster and easier. I created a bunch of functions that:
-- convert data from SAS to R-friendly format (FST)
-- import data from old and new databases
-- combine old and new databases into a single data frame
-- get crash flags (i.e. deer, teen driver)
-- bin by age group and crash time
-- and also snippets
+These scripts make data pull requests and data analysis faster and easier.
+There is also a crash data pull template that is an outline to do quick data pulls.
+I created many functions that:
+- Convert data from SAS to R-friendly format (FST)
+- Import data from old and new databases in this FST format, which also relabels some old db variables to merge with new db
+- Combine old and new databases into a single data frame
+- Get crash flags (i.e. deer, teen driver)
+- Bin by age group and crash time
+- and also snippets (i.e. code chunks)
 
 ## Crash_Analysis_Functions.R
 
 ### Import data functions for new db:
 + import_crashes(fileloc = file_loc, years_selected = years, selected_columns = crashes_columns)         - also for vehicle and persons  
++ import_narratives_csv(fileloc = file_loc_narr, years_selected = years) 
 
 ### Import data functions for old db:
 + import_crashes_old(fileloc = file_loc, years_selected = years_old) - also for vehicle and persons  
++ Relabels CNTYCODE so counties in format like 'Milwaukee'  
 + These also renames columns (and some variables) "ACCDNMBR", "ACCDDATE", "ACCDMTH", "ACCDSVR", "ACCDHOUR", "INJSVR", "ACCDTYPE" to match new dB. Also "AGE" to "AGE_GROUP", "ACCDTIME" to "CRSHTIME_GROUP"
 
 ### Crash flag functions add a flag column with either 'Y' or 'N'. These functions and their flag column are:
@@ -29,7 +33,7 @@ These scripts make data pull requests and data analysis faster and easier. I cre
 + get_crash_times(any_df)               - newtime  
 + get_age_groups(person_df)             - age_group  
 + county_rename(any_df)                 - countyname  
-+ bin_injury_persons(person_df)         - inj - bins into Killed, Injured, No Injury  
++ bin_injury_persons(person_df)         - inj - bins into Killed, Injured, No Injury (for old and new db) 
 + get_drug_alc_suspected                - drug_alc_susp - bins into Yes, No, Unknown
 
 ### Other functions:

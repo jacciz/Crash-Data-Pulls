@@ -5,22 +5,24 @@ library(dplyr)
 library(lubridate)
 
 # where all CSV files are located
-file_loc = "C:/Users/dotjaz/00crashes/"
-# file_loc = "C:/CSV/csv_from_sas/from_sas_csv/"
+file_loc = "C:/CSV/csv_from_sas/from_sas_csv/"
 
 # get all CSV file names
 myfiles = list.files(path=file_loc, pattern="*.csv", full.names=FALSE, include.dirs = FALSE)
-# myfiles <- myfiles[grepl("94", myfiles)] # select only 2020 year
+# myfiles <- myfiles[grepl("20", myfiles)] # select only 2020 year
 
+# Must exclude narrative files
+myfiles <- myfiles[!grepl("narrative", myfiles)] 
 
-# Locally saved sas files
-loc_to_save = "C:/CSV/csv_from_sas/fst/" # fst output location
+# Location to save fst output
+loc_to_save = "C:/CSV/csv_from_sas/fst/"
 
 # Save as fst file using (names of files, location of sas files, location to save, location of formatfile)
-save_crash_to_fst <-
+save_crash_db_to_fst <-
   function(filename,
            fileloc = file_loc,
            filesave = loc_to_save) {
+    # First, read the CSV
     openfile <- read.csv(
       paste0(fileloc, filename, sep = ""),
       sep = ",",
@@ -28,11 +30,11 @@ save_crash_to_fst <-
       header = TRUE,
       skipNul = TRUE
     )
-    # Change date column to date type, depends if old or new database. Don't have db (yet) for 1994 - 1999
+    # Change date column to date type, depends if old or new database.
     data_year = as.integer(substr(filename, start = 1, stop = 2))
     data_type = (substr(filename, start = 3, stop = 20))
     if (grepl("accident|crash|vehicle|person|occupant", data_type)) {
-      if (data_year >= 17 & data_year <= 25) {# 2017 - 2025
+      if (data_year >= 17 & data_year <= 25) {        # 2017 - 2025
         openfile$CRSHDATE <- mdy(openfile$CRSHDATE) 
       } else if (data_year <= 16 & data_year >= 00) { # 2000 - 2016
         openfile$ACCDDATE <- mdy(openfile$ACCDDATE)
@@ -42,8 +44,11 @@ save_crash_to_fst <-
         openfile$ACCDDATE <- ymd(openfile$ACCDDATE) 
       }
     }
+    # Don't need these two lines. I was originally importing directly from SAS file locations but
+    # the haven package wasn't applying formatfile correctly.
     # filename <- sub(pattern = "^crash", replacement = "", filename) # remove only 'crash' folder name, keeps year and db name
     # filename <- sub(pattern = "/", replacement = "", filename) # removes the /
+    
     filename <-
       sub(pattern = "(.*)\\..*$", replacement = "\\1", filename) # removes file extension
     
@@ -52,13 +57,12 @@ save_crash_to_fst <-
     filename <- sub(pattern = "vehicles", "vehicle", filename)
     filename <- sub(pattern = "occupant", "person", filename)
     
-    # test <- sub(pattern = "(\\d{2})$", replacement = "^\\d", filename) # but 2 digit year to front, can't figure it out
     write_fst(openfile, path = paste0(filesave, filename, ".fst"))
   }
-mapply(save_crash_to_fst, filename = myfiles) # batch apply function to all myfiles
 
-# 
-# 
+# Batch apply function to all myfiles
+mapply(save_crash_db_to_fst, filename = myfiles) 
+
 # name = "16person.csv"
 # openfile <- read.csv(paste0(file_loc, "16person.csv", sep = ""),
 #                      sep = ",", # ~ delimited file - should be ~ or ,

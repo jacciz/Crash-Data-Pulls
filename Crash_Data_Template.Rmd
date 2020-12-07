@@ -12,9 +12,11 @@ This is a template to do a data pull. You must select the years of the data.  Th
 
 ### Import data functions for new db:
 + import_crashes(fileloc = file_loc, years_selected = years, selected_columns = crashes_columns)         - also for vehicle and persons  
++ import_narratives_csv(fileloc = file_loc_narr, years_selected = years) 
 
 ### Import data functions for old db:
 + import_crashes_old(fileloc = file_loc, years_selected = years_old) - also for vehicle and persons  
++ Relabels CNTYCODE so counties in format like 'Milwaukee'  
 + These also renames columns (and some variables) "ACCDNMBR", "ACCDDATE", "ACCDMTH", "ACCDSVR", "ACCDHOUR", "INJSVR", "ACCDTYPE" to match new dB. Also "AGE" to "AGE_GROUP", "ACCDTIME" to "CRSHTIME_GROUP"
 
 ### Crash flag functions add a flag column with either 'Y' or 'N'. These functions and their flag column are:
