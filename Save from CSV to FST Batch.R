@@ -5,7 +5,8 @@ library(dplyr)
 library(lubridate)
 
 # where all CSV files are located
-file_loc = "C:/CSV/csv_from_sas/from_sas_csv/"
+# file_loc = "C:/CSV/csv_from_sas/from_sas_csv/"
+file_loc = "C:/Users/dotjaz/"
 
 # get all CSV file names
 myfiles = list.files(path=file_loc, pattern="*.csv", full.names=FALSE, include.dirs = FALSE)
@@ -31,8 +32,8 @@ save_crash_db_to_fst <-
       skipNul = TRUE
     )
     # Change date column to date type, depends if old or new database.
-    data_year = as.integer(substr(filename, start = 1, stop = 2))
-    data_type = (substr(filename, start = 3, stop = 20))
+    data_year = as.integer(substr(filename, start = 1, stop = 2)) # get year of data
+    data_type = (substr(filename, start = 3, stop = 20)) # grab type of data (crash, person, vehicle)
     if (grepl("accident|crash|vehicle|person|occupant", data_type)) {
       if (data_year >= 17 & data_year <= 25) {        # 2017 - 2025
         openfile$CRSHDATE <- mdy(openfile$CRSHDATE) 
@@ -40,10 +41,13 @@ save_crash_db_to_fst <-
         openfile$ACCDDATE <- mdy(openfile$ACCDDATE)
       } else if (data_year <= 99 & data_year >= 95) { # 1995 - 1999
         openfile$ACCDDATE <- mdy(openfile$ACCDDATE)
-      } else if (data_year >= 80 & data_year <= 94) { # 1980 - 1994
-        openfile$ACCDDATE <- ymd(openfile$ACCDDATE) 
-      }
+      } else if (data_year >= 94 & data_year <= 94) { # 1994
+        openfile$ACCDDATE <- ymd(openfile$ACCDDATE)
+      } else if (data_year >= 80 & data_year <= 93) { # 1989 - 1993
+        openfile$ACCDDATE <- mdy(openfile$ACCDDATE) 
     }
+    }
+
     # Don't need these two lines. I was originally importing directly from SAS file locations but
     # the haven package wasn't applying formatfile correctly.
     # filename <- sub(pattern = "^crash", replacement = "", filename) # remove only 'crash' folder name, keeps year and db name
@@ -52,10 +56,11 @@ save_crash_db_to_fst <-
     filename <-
       sub(pattern = "(.*)\\..*$", replacement = "\\1", filename) # removes file extension
     
-    filename <-
-      sub(pattern = "accident", "crash", filename) # rename files for old database
-    filename <- sub(pattern = "vehicles", "vehicle", filename)
-    filename <- sub(pattern = "occupant", "person", filename)
+    # Don't need, CSV already has this file name
+    # filename <-
+    #   sub(pattern = "accident", "crash", filename) # rename files for old database
+    # filename <- sub(pattern = "vehicles", "vehicle", filename)
+    # filename <- sub(pattern = "occupant", "person", filename)
     
     write_fst(openfile, path = paste0(filesave, filename, ".fst"))
   }

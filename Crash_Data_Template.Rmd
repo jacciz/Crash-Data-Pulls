@@ -85,9 +85,9 @@ file_loc_narr = "C:/CSV/csv_from_sas/from_sas_csv/" # location of CSVs for narra
 years_old = c("15", "16") # select years to import, 2016 and before
 
 # Choose variables to select or keep empty - c()
-crashes_columns = c("CRSHNMBR", "CRSHDATE", "CNTYCODE", "CRSHSVR", "CRSHTYPE", paste0("ANMLTY", formatC(seq(1, 7), digits = 0, width = 2, flag = "0")))
+crashes_columns = c("CRSHNMBR", "CRSHDATE", "CNTYCODE", "CRSHSVR", "CRSHTYPE", paste0("ANMLTY", formatC(seq(1, 7), width = 2, flag = "0")))
 vehicles_columns = c("CRSHNMBR", "CRSHDATE", "UNITNMBR", "VEHTYPE")
-persons_columns = c("CRSHNMBR", "CNTYCODE", "CRSHDATE", "UNITNMBR", "DRVRFLAG", "HLMTUSE", "EYEPROT", "SFTYEQP", "ROLE", "SEX", "AGE", "DISTACT", paste0("DRVRPC", formatC(seq(1, 20), digits = 0, width = 2, flag = "0"))) # starts_with("STATNM"), starts_with("DRVRDS"))
+persons_columns = c("CRSHNMBR", "CNTYCODE", "CRSHDATE", "UNITNMBR", "DRVRFLAG", "HLMTUSE", "EYEPROT", "SFTYEQP", "ROLE", "SEX", "AGE", "DISTACT", paste0("DRVRPC", formatC(seq(1, 20), width = 2, flag = "0"))) # starts_with("STATNM"), starts_with("DRVRDS"))
 ```
 
 ```{r Run import and combine old/new data}

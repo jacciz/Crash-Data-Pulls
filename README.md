@@ -9,7 +9,7 @@ I created many functions that:
 - and also snippets (i.e. code chunks)
 
 ## 'Crash_Analysis_Functions.R'
-These are all functions which are loaded into the template.
+These functions are loaded into the template.
 
 ### Import data functions for new db:
 + import_crashes(fileloc = file_loc, years_selected = years, selected_columns = crashes_columns)         - also for vehicle and persons  
