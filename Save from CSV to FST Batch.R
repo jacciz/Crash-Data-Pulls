@@ -66,35 +66,4 @@ save_crash_db_to_fst <-
   }
 
 # Batch apply function to all myfiles
-mapply(save_crash_db_to_fst, filename = myfiles) 
-
-# name = "16person.csv"
-# openfile <- read.csv(paste0(file_loc, "16person.csv", sep = ""),
-#                      sep = ",", # ~ delimited file - should be ~ or ,
-#                      header = TRUE, skipNul = TRUE)
-# #
-# data_year = as.integer(substr(name, start = 1, stop = 2))
-# data_type = (substr(name, start = 3, stop = 20))
-# if (grepl("accident|crash|vehicle|person|occupant", data_type)) {
-#   if (data_year >= 17 & data_year <= 25) {# 2017 - 2025
-#     openfile$CRSHDATE <- mdy(openfile$CRSHDATE) 
-#   } else if (data_year <= 16 & data_year >= 00) { # 2000 - 2016
-#     openfile$ACCDDATE <- mdy(openfile$ACCDDATE)
-#   } else if (data_year >= 80 & data_year <= 94) { # 1980 - 1994
-#     openfile$ACCDDATE <- ymd(openfile$ACCDDATE) 
-#   }
-# }
-# 
-# if (grepl("accident|crash|vehicle|person|occupant", data_type)){
-#   print("yes")
-#   
-# }
-# 
-# openfile$ACCDDATE <- mdy(openfile$ACCDDATE)
-# # filename <- sub(pattern = "^crash", replacement = "", filename) # remove only 'crash' folder name, keeps year and db name
-# # filename <- sub(pattern = "/", replacement = "", filename) # removes the /
-# filename <- sub(pattern = "(.*)\\..*$", replacement = "\\1", filename) # removes file extension
-# 
-# filename <- sub(pattern = "accident", "crash", filename) # rename files for old database
-# filename <- sub(pattern = "vehicles", "vehicle", filename)
-# filename <- sub(pattern = "occupant", "person", filename)
+mapply(save_crash_db_to_fst, filename = myfiles)

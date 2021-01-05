@@ -296,6 +296,40 @@ get_impaired_driver_flag <- function(dataframe) {
   return(left_join(dataframe, impaired, by = c("CRSHNMBR", "UNITNMBR", "ROLE")) %>% mutate(impaireddriver_flag = replace_na(impaireddriver_flag, "N")))
 }
 
+get_alcohol_impaired_driver_flag <- function(dataframe) {
+  impaired <- dataframe %>%
+    select(ROLE,
+           DRVRFLAG,
+           UNITNMBR,
+           CRSHNMBR,
+           any_of(c(
+             "ALCSUSP"))) %>%
+    filter(
+      ROLE == 'Driver' |
+        DRVRFLAG == 'Y',
+        ALCSUSP == "Yes" |
+        ALCSUSP == "101"
+    ) %>% select(CRSHNMBR, UNITNMBR, ROLE) %>% mutate(alcohol_impaireddriver_flag = "Y")
+  return(left_join(dataframe, impaired, by = c("CRSHNMBR", "UNITNMBR", "ROLE")) %>% mutate(alcohol_impaireddriver_flag = replace_na(alcohol_impaireddriver_flag, "N")))
+}
+
+get_drug_impaired_driver_flag <- function(dataframe) {
+  impaired <- dataframe %>%
+    select(ROLE,
+           DRVRFLAG,
+           UNITNMBR,
+           CRSHNMBR,
+           any_of(c(
+             "DRUGSUSP"))) %>%
+    filter(
+      ROLE == 'Driver' |
+        DRVRFLAG == 'Y',
+      DRUGSUSP == "Yes" |
+        DRUGSUSP == "101"
+    ) %>% select(CRSHNMBR, UNITNMBR, ROLE) %>% mutate(drug_impaireddriver_flag = "Y")
+  return(left_join(dataframe, impaired, by = c("CRSHNMBR", "UNITNMBR", "ROLE")) %>% mutate(drug_impaireddriver_flag = replace_na(drug_impaireddriver_flag, "N")))
+}
+
 get_teen_driver <- function(dataframe) {
   teen <-
     dataframe %>% filter(AGE %in% c(16, 17, 18, 19), ROLE == 'Driver' |

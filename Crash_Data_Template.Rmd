@@ -5,8 +5,7 @@ output:
     df_print: paged
   word_document: default
 ---
-
-This is a template to do a data pull. You must select the years of the data.  This notebook uses functions from an R script (Crash_Analysis_Functions.R) to import data (old and new db), to add columns of crash flags (i.e. speed, deer) and to add other columns (i.e. crash time, age group, county name).
+This notebook is a template to do a data pull. It imports functions from an R script (Crash_Analysis_Functions.R) to: import data (old and new db), get crash flags (i.e. speed, deer) and add certain columns (i.e. crash time, age group, county name).
 
 ## Here are the functions in Crash_Analysis_Functions.R
 
@@ -23,6 +22,8 @@ This is a template to do a data pull. You must select the years of the data.  Th
 + get_deer_crashes(crash_df)            - deer_flag (old & new db)  
 + get_distracted_driver_flag(person_df) - distracted_flag (new db)  
 + get_impaired_driver(person_df)        - impaireddriver_flag (new db)  
++ get_alcohol_impaired_driver_flag
++ get_drug_impaired_driver_flag
 + get_speed_flag(person_df)             - speed_flag (old & new db)  
 + get_teen_driver(person_df)            - teendriver_flag (new db)  
 + get_older_driver(person_df)           - olderdriver_flag (new db)  
@@ -65,7 +66,7 @@ knitr::opts_knit$set(root.dir = '/...')
 
 library(dplyr)        # to subset, filter, summarize data, in tidyverse, replaces plyr
 library(ggplot2)      # create charts
-library(tidyverse)    # to select, filter data, for data science
+library(tidyverse)    # includes tidyr, tibble, and more
 library(lubridate)    # for working with dates, need this for data import
 library(expss)        # SPSS style package
 library(fst)          # Data type of db data
@@ -81,13 +82,13 @@ source("W:/HSSA/Keep/Jaclyn Ziebert/R/Crash-Data-Pulls/Crash_Analysis_Functions.
 ```{r What to select}
 file_loc = "C:/CSV/csv_from_sas/fst/" # location of FST crash database files to load
 file_loc_narr = "C:/CSV/csv_from_sas/from_sas_csv/" # location of CSVs for narratives
-# years = c("17", "19") # select years to import, must be in this format
-years_old = c("15", "16") # select years to import, 2016 and before
+years = c("17", "18", "19") # select years to import, must be in this format
+years_old = c("11", "12") # select years to import, 2016 and before
 
 # Choose variables to select or keep empty - c()
 crashes_columns = c("CRSHNMBR", "CRSHDATE", "CNTYCODE", "CRSHSVR", "CRSHTYPE", paste0("ANMLTY", formatC(seq(1, 7), width = 2, flag = "0")))
 vehicles_columns = c("CRSHNMBR", "CRSHDATE", "UNITNMBR", "VEHTYPE")
-persons_columns = c("CRSHNMBR", "CNTYCODE", "CRSHDATE", "UNITNMBR", "DRVRFLAG", "HLMTUSE", "EYEPROT", "SFTYEQP", "ROLE", "SEX", "AGE", "DISTACT", paste0("DRVRPC", formatC(seq(1, 20), width = 2, flag = "0"))) # starts_with("STATNM"), starts_with("DRVRDS"))
+persons_columns = c("CRSHNMBR", "CNTYCODE", "CRSHDATE", "UNITNMBR", "WISINJ", "DRVRFLAG", "HLMTUSE", "EYEPROT", "SFTYEQP", "ROLE", "SEX", "AGE", "DISTACT", paste0("DRVRPC", formatC(seq(1, 20), width = 2, flag = "0"))) # starts_with("STATNM"), starts_with("DRVRDS"))
 ```
 
 ```{r Run import and combine old/new data}
@@ -133,6 +134,7 @@ crashes_new[CRSHSVR %chin% c('Fatal'), ]
 # DRVRPC - put data in long format to count frequency
 # persons_new %>% select(starts_with("DRVRPC")) %>% pivot_longer(starts_with("DRVRPC")) %>% filter(value !='') 
 ```
+
 ```{r Create a Table to Knit HTML}
 # https://cran.r-project.org/web/packages/kableExtra/vignettes/awesome_table_in_html.html#Overview
 # crashes_new %>% filter(CYCLFLAG == "Y") %>% group_by(year = year(CRSHDATE), URBRURAL) %>% summarise(count = n()) %>% pivot_wider(names_from = URBRURAL, values_from = count) %>% adorn_totals("col") %>% kbl(caption = "Title") %>% kable_styling()
