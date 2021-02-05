@@ -1,4 +1,4 @@
-These scripts make data pull requests and data analysis faster and easier.
+These scripts make data pull requests and data analysis faster and easier. I use them internally in my job, but wanted to share for portfolio purposes.
 There is also a crash data pull template that is an outline to do quick data pulls.
 I created many functions that:
 - Convert data from SAS to R-friendly format (.FST)
