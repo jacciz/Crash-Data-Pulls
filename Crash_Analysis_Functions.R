@@ -15,7 +15,7 @@ read_cols <- function(file_name, colsToKeep) {
 # I'm using mutate_at and any_of to change class type only if column exists
 read_fst_for_new_db <- function(file_to_read, col_to_select) {
   found_columns <- read_cols(file_to_read, col_to_select)
-  read_fst(file_to_read, as.data.table = TRUE, columns = found_columns ) %>%
+  read_fst(file_to_read, as.data.table = TRUE, columns = found_columns) %>%
     mutate_at(dplyr::vars(any_of(
     c("MCFLNMBR",
       "RECDSTAT",
@@ -389,11 +389,33 @@ get_crash_times <- function(dataframe) {
 get_age_groups <- function(dataframe) {
   dataframe %>% mutate(age_group = cut(  # add age_group column, 5 year intervals
     AGE,
+    right = FALSE,
     c(0,4,9,14,19,24,29,34,39,44,49,54,59,64,69,120),
     labels = c("0-4","5-9","10-14","15-19","20-24","25-29","30-34","35-39","40-44", "45-49","50-54","55-59","60-64","65-69","70+"),
     include.lowest = T
   ))
 }
+# This is to match old crash . Old db age = 0 is UNKNOWN
+# Add this ?? mutate(age_group_10yr = ifelse(age_group_10yr == "UNKNOWN", AGE_GROUP, as.character(age_group_10yr)))
+get_age_groups_10yr <- function(dataframe) {
+  dataframe <- dataframe %>% mutate(age_group_10yr = cut(  # add age_group column
+    AGE,
+    # right = FALSE,
+    c(1,2,3,4,9,14,15,16,17,18,19,20,21,22,23,24,34,44,54,64,74,84,120),
+    labels = c("1-2","3","4","5-9","10-14","15","16","17","18","19","20","21","22","23","24","25-34","35-44", "45-54","55-64","65-74","75-84", "85 AND OVER"),
+    include.lowest = T
+  ))
+  # Get levels of age_group factor and add Unknown
+  levels <- levels(dataframe$age_group_10yr)
+  levels[length(levels) + 1] <- "UNKNOWN"
+  # refactor Species to include "None" as a factor level
+  # and replace NA with "None"
+  dataframe$age_group_10yr <-
+    factor(dataframe$age_group_10yr, levels = levels)
+  dataframe$age_group_10yr[is.na(dataframe$age_group_10yr)] <- "UNKNOWN"
+  dataframe
+}
+
 
 ###### Find Motorcyclists ###### 
 get_motorcycle_persons <- function(person_df, vehicle_df) {

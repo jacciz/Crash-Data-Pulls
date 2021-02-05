@@ -1,0 +1,316 @@
+---
+title: "rest_api_queries"
+output: html_document
+---
+This script gathers court case data from an API. Data comes in JSON format. Output is one long flattened files of court cases given a date range. The API works in two steps - 1) Gather court case number and county code for each day, then 2) Uses case number / county code to get actual court case data. I wrote a final function that combines these two functions. Output is saved in an RDS format for data analysis (see get_third_offenders.RMD).
+
+I have functions to:
+  + Flatten JSON
+  + Get all dates between a specified start/end data
+  + Get case numbers / county code from API (@base_API_url, @link_API_url, @startdate, @enddate)
+  + Get case data (@dataframe from get_case_numbers(), @base_API_url,)
+  + Get all case data - combines all these functions so you only have to run this
+
+```{r setup, include=FALSE}
+# Set working directory to where this notebook is saved
+knitr::opts_chunk$set(echo = FALSE, comment = NA, warning = FALSE, error = FALSE, message = FALSE, tidy = TRUE, fig.dim = c(7, 4), global.par = TRUE)
+knitr::opts_knit$set(root.dir = '/...')
+```
+
+```{r libraries}
+library(plyr)
+library(dplyr)
+library(jsonlite)
+library(httr)
+library(data.table)
+library(lubridate)
+library(foreach)
+```
+
+```{r secret}
+username <- "jacciz"
+password <- rstudioapi::askForPassword()
+baseurl <- "hidden"
+```
+
+```{r functions to flatten json to dataframe}
+
+# source: https://stackoverflow.com/questions/11553592/r-generic-flattening-of-json-to-data-frame
+flatten<-function(x) {
+  dumnames<-unlist(getnames(x,T))
+  dumnames<-gsub("(*.)\\.1","\\1",dumnames)
+  repeat {
+    x <- do.call(.Primitive("c"), x)
+    if(!any(vapply(x, is.list, logical(1)))){
+      names(x)<-dumnames
+      return(x)
+    }
+  }
+}
+getnames<-function(x,recursive){
+  
+  nametree <- function(x, parent_name, depth) {
+    if (length(x) == 0) 
+      return(character(0))
+    x_names <- names(x)
+    if (is.null(x_names)){ 
+      x_names <- seq_along(x)
+      x_names <- paste(parent_name, x_names, sep = "")
+    }else{ 
+      x_names[x_names==""] <- seq_along(x)[x_names==""]
+      x_names <- paste(parent_name, x_names, sep = "")
+    }
+    if (!is.list(x) || (!recursive && depth >= 1L)) 
+      return(x_names)
+    x_names <- paste(x_names, ".", sep = "")
+    lapply(seq_len(length(x)), function(i) nametree(x[[i]], 
+                                                    x_names[i], depth + 1L))
+  }
+  nametree(x, "", 0L)
+}
+```
+
+```{r function to get create date range list}
+# This function returns a list of each day between start and end date
+get_daterange <- function(start, end, days_int) {
+  # If we search by time interval
+  days_interval = days_int
+  by_days = paste0(days_interval, " days")
+  st <- seq(as.Date(start), as.Date(end), by = by_days)
+  en <-
+    seq(as.Date(start) + days_interval - 1,
+        as.Date(end),
+        by = by_days)
+  if (tail(en, 1)!= end){
+    en = en %>% append(end)}
+  return(data.frame(start = st, end = en))
+  # If we search by day, use this
+  # days = seq(as.Date(start), as.Date(end), by = "day")
+  #   return (days)
+}
+```
+
+```{r function to get casenumbers}
+# This function returns a df with casenumbers and countycode. It iterates through the date range and code selected and grabs matching cases.
+get_casenumbers <- function(b, code, startday, endday) {
+  
+  # This is the url being called for the query
+  
+  # call1 <- # By wciscClsCode
+  #   paste(
+  #     b,
+  #     "cases?expand=all&&&&&&&&&&&&&dispoDate=",
+  #     startday,
+  #     "..",
+  #     endday,
+  #     "&wcisClsCode=",
+  #     code,
+  #     "&&",
+  #     sep = ""
+  #   )
+  
+    call1 <- # By caseType
+    paste(
+      b,
+      "cases?expand=all&&&&&&&&&&caseType=",
+      code,
+      "&&&",
+      "dispoDate=",   # dispoDate or  filingDate
+      startday,
+      "..",
+      endday,
+      sep = ""
+    )
+
+  # First, GET request from API, serialization
+  get_cases <-
+    GET(call1, authenticate(username, password, type = "basic"))
+  
+  # Then, deserialize the payload
+  get_cases_text <- content(get_cases, "text")
+
+  # And convert it to from JSON format
+  get_cases_df <-
+    fromJSON(get_cases_text, flatten = TRUE)
+  
+  # If no cases, probably because of weekend, return nothing
+  if (length(get_cases_df) == 0){
+    return() }
+  
+  # Select columns and convert to df
+  get_cases_df <- get_cases_df %>% dplyr::select(caseNo, county.countyNo) %>% mutate(county.countyNo = as.character(county.countyNo)) %>% as.data.frame()
+  
+  get_cases_df
+}
+
+```
+
+```{r function to get specific case info }
+# This function uses the df from get_casenumbers(). It takes in one row of data and grabs case data.
+get_case_data <- function(df_row, b) {
+  
+  # Get our variables from these columns
+  ccode = df_row["county.countyNo"]
+  cnum = df_row["caseNo"]
+
+  # This is the url being called for the query
+  call1 <-
+    paste(b,
+          "cases/",
+          ccode,
+          "/",
+          cnum,
+          "?expand=all",
+          sep = "")
+  
+  # First, GET request from API, serialization
+  get_cases <-
+    GET(call1, authenticate(username, password, type = "basic"))
+  
+  # Then, deserialize the payload
+  get_cases_text <- content(get_cases, "text")
+  
+  # 403 is case is sealed, there could be other status codes? 200 is what we want
+  if (get_cases$status_code != 200) {
+    return()
+  }
+
+  # Convert to JSON, flatten JSON, output (d) is df
+  parsed = lapply(get_cases_text, fromJSON, simplifyVector=FALSE)
+  flattened = lapply(parsed, flatten) # using flatten from accepted answer
+  d = rbindlist(flattened, fill=TRUE)
+  
+  # skip if charge count greater than 12 and returns ONLY caseNo and countycode
+  if (max(d %>% dplyr::select(contains("chargeNo"))) > 12) {
+    # print(d[, "caseNo"], d[, "county.countyNo"])
+    return(d %>% dplyr::select(
+      starts_with("county.countyNo"),
+      starts_with("county.countyName"),
+      starts_with("caseNo")
+    ))
+  } else {
+  
+  # Select columns we want
+  d <- d %>% dplyr::select(
+    starts_with("county.countyNo"),
+    starts_with("county.countyName"),
+    starts_with("parties.name"),
+    starts_with("caseNo"),
+    starts_with("charges")
+  ) %>% dplyr::select(-contains("href|mediaType"))
+  d }
+}
+```
+
+# Lets get data!
+```{r Final function to do the query}
+# This function puts it all together - ouput is all case data using both GET REQUEST functions in a 2-step process
+
+# To do the request, first we need the date ranges (start/end_date) and time interval (i.e. 20 days) and these will be used to iterate through each date range (created using get_daterange()). The daterange is inputted int the get_casenumbers function (which also needs the caseTpe). This returns a df of all casenumbers/countycodes in this date range.
+
+# Next, rows in this df are looped, grabbing each case date, flattens JSON to a very long single-row df. Each case is row-binded into a huge df (all_case_data)
+
+get_allcasedata_complete <-
+  function(b = baseurl, code = wcisClsCod, start, end, day_int) {
+    
+    # First, we get long df with all casenumbers/county code in the daterange
+    day = get_daterange(start_date, end_date, days_int = day_int) # day returns a df of date ranges to iterate
+    all_case_numbers <-
+      foreach(day=iterators::iter(day, by='row'), .combine = 'rbind') %dopar% {
+        get_casenumbers(b, code, startday = day[, "start"], endday = day[, "end"])
+      }
+    
+    # Remove duplicated cases (bc one case may have different jdgtment dates)
+    all_case_numbers <- all_case_numbers[!duplicated(all_case_numbers), ]
+    
+    # Second, we use this df (all_case_numbers) to grab all case data using the get_case_data function. This iterates through each row and combines all into a giant dataframe. Empty columns are filled with NA
+  all_case_data <- do.call("rbind.fill", apply(all_case_numbers, 1, get_case_data, b))
+  all_case_data
+  # all_case_numbers
+  }
+```
+
+```{r Do the query}
+# The date range - either filingdate or dispodate
+
+# TIP: may want to exclude the second part of get_allcasedate_complete() to see if you don't errored out because of having > 1,500 hits.
+
+# ERROR in { : task 1 failed - "`select()` doesn't handle lists." - This may be because of 1,500 + hits, Solution: lower date_interval
+# ERROR Error in FUN(X[[i]], ...) : only defined on a data frame with all numeric variables - this is when caseType = CV because there is no chargeNo
+
+# jul 1 2019, CT - one case has 41 citations - 2019CM000093 cty 64
+
+# start_date = "2019-07-01"
+start_date = "2019-01-01"
+end_date   = "2019-12-31"
+date_interval = 5 # in days, API max is 30, if one day search this should be 1
+ # try cv and cx??
+
+# 23,550 took 1.5 hour - 15 day interval
+jul__jun_1920_codeCT <- get_allcasedata_complete(code = "CT", start = start_date, end = end_date, day_int = date_interval)
+
+# 49,799 took 2.5 hours - 5 day interval
+jul__jun_1920_codeCM <- get_allcasedata_complete(code = "CM", start = start_date, end = end_date, day_int = date_interval)
+
+# Combine all the dfs, id to add a unique ID, 62037 total
+cases <- do.call("rbind.fill",
+        list(jul__jun_1920_codeCT,
+             jul__jun_1920_codeCM
+             )) %>% mutate(id = row_number())
+
+# save as csv as a backup - RENAME so you don't overwrite file
+saveRDS(cases, "C:/REST_API_Searches/x.rds")
+```
+
+
+```{r Get one case data}
+# Get one case, parameters are hard coded, not flattened
+get_one_case <- function(){
+  call1 <-
+    paste(baseurl,
+          "cases/",
+          "51",
+          "/",
+          "2018CM000816",
+          "?expand=all",
+          sep = "")
+  
+  # First, GET request from API, serialization
+  get_cases <-
+    GET(call1, authenticate(username, password, type = "basic"))
+  
+  # Then, deserialize the payload
+  get_cases_text <- content(get_cases, "text") # after this step, we lose data ??
+
+  # And convert it to from JSON format
+  get_cases_df <-
+    fromJSON(get_cases_text)
+  # get_cases_text
+}
+
+# one_case = get_one_case()
+```
+
+```{r Cases Analysis}
+# Find empty ones because of >12 citations
+cases %>% filter(is.na(charges.statuteCite)) %>% nrow()
+
+# Find duplicates
+cases %>% group_by(county.countyNo, caseNo) %>% summarise(x=n()) %>% filter(x>1)
+
+#Find count w/o duplicates
+cases %>% distinct(county.countyNo, caseNo)
+
+# Remove dupicates
+cases <- unique(setDT(cases), by = c("county.countyNo", "caseNo"))
+
+# Get one case data
+cases %>% filter(caseNo == "2019CM000093")#co 22 july 8
+get_case_data(df_row = get_casenumbers(b=baseurl, "2019-07-08", "2019-07-08", code = "CM")[18,], b = baseurl)
+
+```
+
+
+
+
+

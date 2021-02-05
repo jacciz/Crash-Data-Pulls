@@ -1,58 +1,63 @@
 ---
 title: "Crash Data Pull Template"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
 output:
   html_document:
     df_print: paged
   word_document: default
 ---
-This notebook is a template to do a data pull. It imports functions from an R script (Crash_Analysis_Functions.R) to: import data (old and new db), get crash flags (i.e. speed, deer) and add certain columns (i.e. crash time, age group, county name).
+```{R, echo = FALSE}
+if(FALSE) {
+'This notebook is a template to do a data pull. It imports functions from an R script (Crash_Analysis_Functions.R) to: import data (old and new db), get crash flags (i.e. speed, deer) and add certain columns (i.e. crash time, age group, county name).
 
 ## Here are the functions in Crash_Analysis_Functions.R
 
 ### Import data functions for new db:
-+ import_crashes(fileloc = file_loc, years_selected = years, selected_columns = crashes_columns)         - also for vehicle and persons  
-+ import_narratives_csv(fileloc = file_loc_narr, years_selected = years) 
++ import_crashes(fileloc = file_loc, years_selected = years, selected_columns = crashes_columns)         - also for vehicle and persons
++ import_narratives_csv(fileloc = file_loc_narr, years_selected = years)
 
 ### Import data functions for old db:
-+ import_crashes_old(fileloc = file_loc, years_selected = years_old) - also for vehicle and persons  
-+ Relabels CNTYCODE so counties in format like 'Milwaukee'  
++ import_crashes_old(fileloc = file_loc, years_selected = years_old) - also for vehicle and persons
++ Relabels CNTYCODE so counties in format like "Milwaukee"
 + These also renames columns (and some variables) "ACCDNMBR", "ACCDDATE", "ACCDMTH", "ACCDSVR", "ACCDHOUR", "INJSVR", "ACCDTYPE" to match new dB. Also "AGE" to "AGE_GROUP", "ACCDTIME" to "CRSHTIME_GROUP"
 
-### Crash flag functions add a flag column with either 'Y' or 'N'. These functions and their flag column are:
-+ get_deer_crashes(crash_df)            - deer_flag (old & new db)  
-+ get_distracted_driver_flag(person_df) - distracted_flag (new db)  
-+ get_impaired_driver(person_df)        - impaireddriver_flag (new db)  
+### Crash flag functions add a flag column with either Y or "N". These functions and their flag column are:
++ get_deer_crashes(crash_df)            - deer_flag (old & new db)
++ get_distracted_driver_flag(person_df) - distracted_flag (new db)
++ get_impaired_driver(person_df)        - impaireddriver_flag (new db)
 + get_alcohol_impaired_driver_flag
 + get_drug_impaired_driver_flag
-+ get_speed_flag(person_df)             - speed_flag (old & new db)  
-+ get_teen_driver(person_df)            - teendriver_flag (new db)  
-+ get_older_driver(person_df)           - olderdriver_flag (new db)  
-+ get_seatbelt_flag_by_role(person_df)  - seatbelt_flag_role (new db)    # Note: someone in that unit & role did not wear a seatbelt, i.e. a passenger or a driver  
-+ get_seatbelt_flag_by_unit(person_df)  - seatbelt_flag_unit (new db)    # Note: someone in that unit did not wear a seatbelt  
++ get_speed_flag(person_df)             - speed_flag (old & new db)
++ get_teen_driver(person_df)            - teendriver_flag (new db)
++ get_older_driver(person_df)           - olderdriver_flag (new db)
++ get_seatbelt_flag_by_role(person_df)  - seatbelt_flag_role (new db)    # Note: someone in that unit & role did not wear a seatbelt, i.e. a passenger or a driver
++ get_seatbelt_flag_by_unit(person_df)  - seatbelt_flag_unit (new db)    # Note: someone in that unit did not wear a seatbelt
 
 ### Functions that add a column (only for new db):
-+ get_crash_times(any_df)               - newtime  
-+ get_age_groups(person_df)             - age_group  
-+ county_rename(any_df)                 - countyname  
-+ bin_injury_persons(person_df)         - inj - bins into Killed, Injured, No Injury  
++ get_crash_times(any_df)               - newtime
++ get_age_groups(person_df)             - age_group
++ get_age_groups_10yr(person_df)        - age_group_10yr (to match old db)
++ county_rename(any_df)                 - countyname
++ bin_injury_persons(person_df)         - inj - bins into Killed, Injured, No Injury
 + get_drug_alc_suspected                - drug_alc_susp - bins into Yes, No, Unknown
 
 ### Other functions:
-+ get_motorcycle_persons(person_df, vehicle_df) - selects motorcyclists (old & new db)  
++ get_motorcycle_persons(person_df, vehicle_df) - selects motorcyclists (old & new db)
 
 ## There also snippets which are chunks of code (Data_Pull_Snippets.snippets).
 
 ### These snippets include:
-+ my_barchart_inj_killed_by_year  
-+ my_barchart_mostharm_by_crshsvr_percent  
-+ my_stacked_barchart_suspected_drugalcohol  
-+ my_barchart_by_hwyclass  
-+ my_heatmap_time_of_day  
-+ my_barchart_stacked_age_gender  
-+ my_make_freq_table_expss  
-+ my_save_as_excel_workbook  
-+ my_make_county_prop_symbol_map  
-+ my_load_county_map_data  
++ my_barchart_inj_killed_by_year
++ my_barchart_mostharm_by_crshsvr_percent
++ my_stacked_barchart_suspected_drugalcohol
++ my_barchart_by_hwyclass
++ my_heatmap_time_of_day
++ my_barchart_stacked_age_gender
++ my_make_freq_table_expss
++ my_save_as_excel_workbook
++ my_make_county_prop_symbol_map
++ my_load_county_map_data'}
+```
 
 ```{r Setup, include = FALSE}
 # Set working directory to where this notebook is saved
@@ -62,7 +67,7 @@ knitr::opts_knit$set(root.dir = '/...')
 
 ```{r Load Libraries}
 # setwd("W:/HSSA/Keep/Jaclyn Ziebert/R/CSV") # if you want to change wd, put this in the code block
-# install.packages("tidyverse", repo = 'https://cran.R-project.org')  try this to install packages in base R, not RStudio
+# install.packages("tidyverse", repo = 'https://cran.R-project.org')  try this to install packages in base R, not RStudio # update.packages(ask='graphics',checkBuilt=TRUE,dependencies = TRUE)
 
 library(dplyr)        # to subset, filter, summarize data, in tidyverse, replaces plyr
 library(ggplot2)      # create charts
@@ -82,8 +87,8 @@ source("W:/HSSA/Keep/Jaclyn Ziebert/R/Crash-Data-Pulls/Crash_Analysis_Functions.
 ```{r What to select}
 file_loc = "C:/CSV/csv_from_sas/fst/" # location of FST crash database files to load
 file_loc_narr = "C:/CSV/csv_from_sas/from_sas_csv/" # location of CSVs for narratives
-years = c("17", "18", "19") # select years to import, must be in this format
-years_old = c("11", "12") # select years to import, 2016 and before
+years = c("17", "18", "19", "20") # select years to import, must be in this format
+years_old = c("16") # select years to import, 2016 and before
 
 # Choose variables to select or keep empty - c()
 crashes_columns = c("CRSHNMBR", "CRSHDATE", "CNTYCODE", "CRSHSVR", "CRSHTYPE", paste0("ANMLTY", formatC(seq(1, 7), width = 2, flag = "0")))
@@ -106,8 +111,8 @@ vehicles_old <- import_vehicles_old()
 persons_old <- import_persons_old()
 
 # To combine old and new db
-crashes <- bind_rows(crashes_old, crashes_new)
-vehicles <- bind_rows(vehicles_old, vehicles_new)
+# crashes <- bind_rows(crashes_old, crashes_new)
+# vehicles <- bind_rows(vehicles_old, vehicles_new)
 persons <- bind_rows(persons_old, persons_new)
 ```
 
@@ -121,9 +126,6 @@ PlotXTabs(crashes_new, ANMLTY01, CRSHSVR)
 
 # https://www.infoworld.com/video/101699/6-r-data-table-symbols-and-operators-you-should-know
 crashes_new[ , .N, by = .(CRSHSVR, year = year(CRSHDATE))][order(year, N)]
-
-crashes_new %>% count(CRSHSVR, year = year(CRSHDATE)) %>% arrange(year, n)
-
 crashes_new[CRSHSVR %chin% c('Fatal'), ]
 ```
 

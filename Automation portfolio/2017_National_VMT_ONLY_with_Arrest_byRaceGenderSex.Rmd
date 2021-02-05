@@ -1,0 +1,693 @@
+---
+title: "NHTS Data Analysis on Drivers and Crashes"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+---
+This project finds risk ratios given a driver age, sex, race/ethnicity. I gathers data from multiple sources and combined them into summary tables broken down by varying arrangements of these characteristics. This analysis I worked in a data table environment as I found it quite easy to summarize and join data.
+
+The project includes 1) arrest data 2) census data via their API 3) NHTS data to derive annual VMT 4) NHTS data to get estimated drivers 5) crash data
+
+Since I was working with data from the above 5 sources, I found the best way to combine them was to have matching column  names. I wrote functions that renamed columns into 1 standard naming convention. In addition, I also renamed certain variable (like race) so they all follow the same "race" names Then functions to summarize each data given the exact same characteristic (i.e. by age group via the parameter 'fields_to_summarize' parameter) and then functions that compiles all this data into a table, make a pretty HTML table, and adds a color gradient to some columns.
+
+I can't show the outputs as it is part of an unpublished research project.
+
+```{r Setup, include = FALSE}
+# Set working directory to where this notebook is saved
+knitr::opts_chunk$set(echo = FALSE, comment = NA, warning = FALSE, error = FALSE, message = FALSE, tidy = TRUE, fig.dim = c(10, 5), global.par = TRUE, knitr.table.format = "html")
+knitr::opts_knit$set(root.dir = '/...')
+```
+
+```{r Load Libraries}
+library(dplyr)        # to subset, filter, summarize data, in tidyverse, replaces plyr
+library(ggplot2)      # create charts
+library(tidyverse)    # includes tidyr, tibble, and more
+library(lubridate)    # for working with dates, need this for data import
+library(expss)        # SPSS style package
+library(fst)          # Data type of db data
+library(ggtext)       # HTML for charts
+library(data.table)   # db files are loaded as a data table, need this package
+library(janitor)      # make tabyl, adorn_totals
+# library(rlang)        # {{variable}} to make ggplot2 functions
+library(kableExtra)   # styling for HTML
+library(summarizeNHTS)
+library(censusapi)
+library(formattable)
+
+source("W:/x/Crash_Analysis_Functions.R") # Source of all the functions
+```
+
+```{r  theme_ggplot2, echo = FALSE}
+# I made a theme for all charts
+theme_bar_charts <- function(base_size = 12) {
+  theme_classic(base_size = base_size) %+replace%
+    theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_blank(),
+    axis.text = element_text(size = base_size),
+    legend.position = "none",
+    strip.background=element_rect(fill="#CCD2D4", colour="transparent"),
+    strip.text  =element_markdown(size = base_size, hjust = 0, margin=margin(0,0,2,2)),
+    plot.title.position = "plot",
+    plot.caption.position =  "plot",
+    plot.title = element_markdown(lineheight = 1.1, size = base_size + 2, hjust = 0, margin=margin(0,0,5,0)), # for title colors
+    plot.caption = element_text(hjust = 0, face= "italic")
+    # legend.text = element_markdown(size = 11)
+    )
+}
+
+# Changing the default theme
+theme_set(theme_bar_charts())
+```
+
+```{r read arrest data}
+arrest17 <- read_csv("W:/x/arrest2017.csv")
+arrest18 <- read_csv("W:/x/arrest2018.csv")
+
+arrests1718 <- rbind(arrest17, arrest18)
+```
+
+```{r get census data}
+# census_summarise_pop_count # Census Bureau's Population Estimates Program (PEP) - https://api.census.gov/data/2015/pep/charage https://www.census.gov/programs-surveys/popest/technical-documentation/file-layouts.html
+# https://api.census.gov/data/2017/pep/charage/variables.html   # 2017 POP: 5,772,917
+# Remove these fields that sum by characteristic
+census17 <- getCensus(name = "pep/charage", key = "x", vars = c("AGE", "SEX", "RACE", "HISP", "POP"), region = "state:55", vintage = 2017) %>% filter(AGE != "999", SEX != "0",  HISP != "0" , !(RACE %in% c("0", "7", "8", "9", "10", "11")))
+```
+
+```{r recode census variables}
+# Change names to match NHTS
+census17 %>% setnames(., c("AGE", "RACE", "SEX", "HISP"),
+                               c("R_AGE", "R_RACE", "R_SEX", "R_HISP"))
+census17 <- census17 %>% as.data.table() %>% mutate(
+  R_SEX = dplyr::recode(
+    R_SEX,
+    "2" = "Female",
+    "1" = "Male",
+    "0" = "Unknown"
+  ),
+  R_RACE = dplyr::recode(
+    R_RACE,
+    # "11" = "Native Hawaiian or other Pacific Islander",
+    # "10" = "Asian",
+    # "9" = "American Indian or Alaska Native",
+    # "8" = "Black or African American",
+    # "7" = "White",
+    # combo
+    "6" = "Other/Unknown",
+    # This is 2 or more races
+    # "5" = "Other/Unknown",
+    "5" = "Asian or Pacific Islander",
+    "4" = "Asian or Pacific Islander",
+    "3" = "American Indian or Alaska Native",
+    "2" = "Black or African American",
+    "1" = "White",
+    "0" = "Other/Unknown"
+  )
+) %>%
+  mutate(R_RACE = ifelse(R_HISP %in% c("2"), "Hispanic", R_RACE),
+         R_AGE = as.integer(R_AGE))
+          # "2" = "Hispanic",
+          # "1" = "Non Hispanic",
+          # "0" = "Both Hispanic origins"
+```
+
+```{r What to select}
+file_loc = "C:/CSV/csv_from_sas/fst/" # location of FST crash database files to load
+file_loc_narr = "C:/CSV/csv_from_sas/from_sas_csv/" # location of CSVs for narratives
+years = c("17", "18") # select years to import, must be in this format
+
+# Choose variables to select or keep empty - c()
+# crashes_columns = c("CRSHNMBR", "CRSHDATE", "CNTYCODE", "CRSHSVR", "CRSHTYPE")
+# vehicles_columns = c("CRSHNMBR", "CRSHDATE", "UNITNMBR", "VEHTYPE")
+persons_columns = c("CRSHNMBR", "CNTYCODE", "CRSHDATE", "TOTUNIT", "UNITNMBR", "CRSHSVR", "WISINJ", "DRVRFLAG", "ROLE", "SEX", "AGE", "RACE", "ALCSUSP", "DRUGSUSP", paste0("DRVRPC", formatC(seq(1, 20), width = 2, flag = "0")), paste0("STATNM", formatC(seq(1, 20), width = 2, flag = "0"))) #  paste0("DRVRPC", formatC(seq(1, 20), width = 2, flag = "0"))
+
+# Create factor levels so they get displayed in this order
+age_group_10yr_factor_level = c("<18", "18-20","21-29","30-39","40-49","50-59","60-69", "70+") 
+race_factor_level <- c('American Indian or Alaska Native', 'Asian or Pacific Islander', 'Black or African American', 'Hispanic', 'White', 'Other/Unknown') # Took out 'Native Hawaiian or other Pacific Islander'
+percents_factor_levels <- c("percent_of_drivers", "percent_of_vmt", "percent_of_crashes", "percent_of_arrests")
+ratios_factor_levels <- c("crash_drivers_ratio", "crash_vmt_ratio", "arrest_driver_ratio", "arrest_vmt_ratio")
+```
+
+```{r get age groups}
+get_age_groups_5yr <- function(dataframe, age_column) {
+  dataframe %>% mutate(age_group_5yr = cut(
+    age_column, right = FALSE,
+    c(0,4,9,13,14,15,20,25,29,34,39,44,49,54,59,64,69,74,79,84,88,120),
+    labels = c("0-4","5-9","10-13","14", "15", "16-20","21-25","26-29","30-34","35-39","40-44", "45-49","50-54","55-59","60-64","65-69","70-74", "75-79", "80-84", "85-88", "89+"),
+    include.lowest = T
+  )) # age_group_5yr = ifelse(is.na(age_group_5yr), "Unknown", levels(age_group_5yr))
+}
+
+get_age_groups_10yr <- function(dataframe, age_column) {
+    dataframe <- dataframe %>% mutate(age_group_10yr = cut(
+    age_column,
+    right = FALSE,
+    c(0, 16, 26, 36, 46, 56, 66, 76, 120),
+    labels = c(
+      "<16",
+      "16-25",
+      "26-35",
+      "36-45",
+      "46-55",
+      "56-65",
+      "66-75",
+      "76+"
+    ),
+    include.lowest = T
+  ))
+
+  # Get levels of age_group factor and add Unknown
+  levels <- levels(dataframe$age_group_10yr)
+  levels[length(levels) + 1] <- "Unknown"
+  # refactor Species to include "None" as a factor level
+  # and replace NA with "None"
+  dataframe$age_group_10yr <-
+    factor(dataframe$age_group_10yr, levels = levels)
+  dataframe$age_group_10yr[is.na(dataframe$age_group_10yr)] <- "Unknown"
+  return(dataframe)
+}
+
+# Returns average crash count based on fields_to_summarise
+person_summarise_crash_count <-
+  function(crash_person_df, fields_to_summarise) {
+    # number_of_years is to get the average crash counts
+    # number_of_years = year(person_df$CRSHDATE) %>% unique() %>% length()
+    number_of_years = crash_person_df[unique(year(CRSHDATE)), .N]
+    crash_person_df[, .(crash_count = .N/number_of_years), by = fields_to_summarise]
+  }
+owi_summarise_arrest_count <- 
+  function(arrest_df, fields_to_summarise){
+    number_of_years = arrest_df[unique(year(violation_date)), .N]
+    arrest_df[, .(total_arrests = .N/number_of_years), by = intersect(fields_to_summarise, names(arrest_df))]
+  }
+
+census_summarise_pop_count <- 
+  function(census_df, fields_to_summarise){
+    # number_of_years = arrest_df[unique(year(violation_date)), .N]
+    census_df[, .(total_population = sum(POP)), by = intersect(fields_to_summarise, names(census_df))]
+  }
+
+```
+
+```{r find if a passenger}
+# Returns passenger_flag column which finds if a passenger was in that unit
+find_if_passenger <- function(person_df) {
+  # First get all the passengers
+  passenger <-
+    person_df %>% filter(ROLE == "Passenger") %>% select(CRSHNMBR, UNITNMBR)
+  # Then join back to df Drivers to add flag to matching crsh/unit nmbrs
+  pass_join <- person_df %>% filter(ROLE == "Driver") %>% semi_join(., passenger, by = c("CRSHNMBR","UNITNMBR")) %>% mutate(passenger_flag = "Y") %>% select(CRSHNMBR, UNITNMBR, passenger_flag)
+  # join back to original
+  left_join(person_df, pass_join, by = c("CRSHNMBR","UNITNMBR")) %>% mutate(passenger_flag = replace_na(passenger_flag, "N"))
+}
+```
+
+```{r NHTS functions}
+# This is according to the codebook
+nhts_relabel_race <- function(df) {
+  df %>%
+    mutate(R_RACE = dplyr::recode(
+      R_RACE,
+        '-8' = 'Dont know',
+        '-7' = 'Refused',
+        '01' = 'White',
+        '02' = 'Black or African American',
+        '03' = 'Asian or Pacific Islander',
+        '04' = 'American Indian or Alaska Native',
+        '05' = 'Asian or Pacific Islander',
+        '06' = 'Multiple responses',
+        '97' = 'Some other race'
+    ))
+}
+
+nhts_combine_unknown_race <- function(df) {
+  df %>%
+    mutate(R_RACE = dplyr::recode(
+      R_RACE,
+        'Dont know'= 'Other/Unknown',
+        'Refused' = 'Other/Unknown',
+        'Multiple responses' = 'Other/Unknown',
+        'Some other race' = 'Other/Unknown'
+    ))
+}
+
+nhts_relabel_hispanic <- function(df) {
+  df %>%
+    mutate(R_HISP = dplyr::recode(
+      R_HISP, 
+        '-8' = 'I dont know',
+        '-7' = 'I prefer not to answer',
+        '01' = 'Yes, Hispanic or Latino',
+        '02' = 'No, Not Hispanic or Latino'
+    ))
+}
+
+nhts_relabel_race_if_hispanic <- function(df) {
+  df %>%
+    mutate(R_RACE = ifelse(R_HISP %in% c("01", "Yes, Hispanic or Latino"), "Hispanic", R_RACE)) #%>% 
+   # nhts_relabel_race_integ()
+}
+
+nhts_relabel_sex <- function(df) {
+  df %>%
+    mutate(R_SEX = dplyr::recode(
+      R_SEX,
+        # '-8' = 'I dont know',
+        # '-7' = 'I prefer not to answer',
+        '-8' = 'Unknown',
+        '-7' = 'Unknown',
+        '01' = 'Male',
+        '02' = 'Female'
+    ))
+}
+
+# These return count total values based on fields_to_summarise (i.e. c("age_group_10yr","R_RACE","R_SEX"))
+
+# This is the unweighted data for 'Average Annual Vehicle Miles of Travel Per Driver' - weight is WTPERFIN - total number of persons
+nhts_summarise_pmd <- function(df, fields_to_summarise){
+  df[HHSTATE %in% c("MI","IA","IL","MN","WI") & DRIVER == "01" & YEARMILE >= 0,c(.(PMD=mean(YEARMILE)), nhts_n = .N), by = intersect(fields_to_summarise, names(df))]
+}
+
+# 'Vehicle Trips (Travel Day VT, annualized, weighted)'
+nhts_summarise_vt <- function(df, fields_to_summarise){
+  df[HHSTATE == "WI" & DRVR_FLG == "01" & TRPTRANS %in% c("03", "04", "05", "06", "08", "09", "18"),c(.(v_trips=sum(WTTRDFIN)), nhts_n = .N), by = intersect(fields_to_summarise, names(df))]
+}
+
+nhts_summarise_total_drivers <- function(df, fields_to_summarise){
+  df[HHSTATE %in% "WI" & DRIVER == "01", .(total_drivers=sum(WTPERFIN)), by = intersect(fields_to_summarise, names(df))]
+}
+```
+
+```{r Functions to Combine NHTS travel data, drivers, and crash count}
+# Put all data sources into a single table
+get_counts_of_PMD_crash_drivers <-
+  function(crash_person_df = persons_new, arrest_df = arrests1718, nhts_person_df = nhts_person, census_df = census17, state = "WI", fields_to_summarise) {
+    crash_counts <-person_summarise_crash_count(crash_person_df, fields_to_summarise)
+    owi_counts <- owi_summarise_arrest_count(arrest_df, fields_to_summarise = fields_to_summarise)
+    pmd_counts <- nhts_summarise_pmd(nhts_person_df, fields_to_summarise = fields_to_summarise)
+    nhts_totdrivers <- nhts_summarise_total_drivers(nhts_person_df, fields_to_summarise = fields_to_summarise)
+    census_pop <- census_summarise_pop_count(census_df, fields_to_summarise = fields_to_summarise)
+    
+    return(Reduce(function(x, y) merge(x, y, all=TRUE, by = intersect(fields_to_summarise, names(nhts_person))), list(crash_counts,owi_counts,pmd_counts,nhts_totdrivers,census_pop)))
+    # return(cbind(crash_counts,pmd_counts,owi_counts,nhts_totdrivers, .id = intersect(fields_to_summarise, names(nhts_person))))
+  }
+# fields_to_summarise = "R_RACE"
+#    crash_counts <-person_summarise_crash_count(persons_new, fields_to_summarise)
+#     owi_counts <- owi_summarise_arrest_count(arrests1718, fields_to_summarise)
+#     pmd_counts <- nhts_summarise_pmd(nhts_person, fields_to_summarise)
+#     nhts_totdrivers <- nhts_summarise_total_drivers(nhts_person, fields_to_summarise)
+#     census_pop <- census_summarise_pop_count(census17, fields_to_summarise)
+#     
+#     (Reduce(function(x, y) merge(x, y, all=TRUE, by = intersect(fields_to_summarise, names(nhts_person))), list(crash_counts,owi_counts,pmd_counts,nhts_totdrivers,census_pop)))
+```
+
+```{r Functions to summarize data and make final tables}
+get_column_colors <- function(table_of_data) {
+  table_of_data %>%
+    mutate(
+      crash_drivers_ratio = color_tile("#deebf7", "#63aacf")(crash_drivers_ratio),
+      crash_vmt_ratio = color_tile("#deebf7", "#63aacf")(crash_vmt_ratio),
+      arrest_driver_ratio = color_tile("#deebf7", "#63aacf")(arrest_driver_ratio),
+      arrest_vmt_ratio = color_tile("#deebf7", "#63aacf")(arrest_vmt_ratio)
+    )
+}
+
+# This derives percents and ratios and adds them to the table
+get_data_of_percents_and_ratios_for_table <-
+  function(summarized_data,
+           fields_that_were_summarised) {
+      round_to_0_digits <-
+      c("nhts_n",
+        "total_drivers",
+        "crash_count",
+        "total_arrests",
+        "total_population")
+    round_to_2_digits <-
+      c(
+        "total_vmt",
+        "percent_of_crashes",
+        "percent_of_drivers",
+        "percent_of_vmt",
+        "percent_of_arrests",
+        # "percent_of_arrests_by_pop",
+        "percent_of_population",
+        "crash_drivers_ratio",
+        "crash_vmt_ratio",
+        # "arrest_pop_ratio",
+        "arrest_driver_ratio",
+        "arrest_vmt_ratio"
+      )
+    total_these_variables <-
+      c(
+        "nhts_n",
+        "total_drivers",
+        "crash_count",
+        "total_arrests",
+        "total_population",
+        "total_vmt",
+        "percent_of_crashes",
+        "percent_of_drivers",
+        "percent_of_vmt",
+        "percent_of_arrests",
+        "percent_of_population"
+        # "percent_of_arrests_by_pop"
+      )
+    data <- summarized_data %>%
+      select(
+        dplyr::all_of(fields_that_were_summarised),
+        nhts_n,
+        total_drivers,
+        PMD,
+        crash_count,
+        total_arrests,
+        total_population
+      ) %>%
+      mutate(
+        total_vmt = (total_drivers * PMD) / 1000000000,
+        percent_of_crashes = crash_count * 100 / sum(crash_count, na.rm = TRUE),
+        percent_of_drivers = total_drivers * 100  / sum(total_drivers, na.rm = TRUE),
+        percent_of_vmt = total_vmt * 100 / sum(total_vmt, na.rm = TRUE),
+        percent_of_arrests = total_arrests * 100 / sum(total_arrests, na.rm = TRUE),
+        percent_of_population = total_population * 100 / sum(total_population, na.rm = TRUE),
+        # percent_of_arrests_by_pop = total_arrests* total_population / sum(total_population),
+        # percent_of_arrests_by_pop = (total_population * total_arrests) * 100 / sum(total_population * total_arrests, na.rm = TRUE),
+        crash_drivers_ratio = percent_of_crashes / percent_of_drivers,
+        crash_vmt_ratio = percent_of_crashes / percent_of_vmt,
+        # arrest_pop_ratio =  percent_of_arrests / percent_of_population,
+        arrest_driver_ratio =  percent_of_arrests / percent_of_drivers,
+        arrest_vmt_ratio = percent_of_arrests / percent_of_vmt,
+        PMD = format(round(PMD, 0), big.mark = ",", scientific = FALSE)
+      ) %>%
+      mutate_at(round_to_0_digits,         # Rounds these fields
+                round,
+                digits = 0) %>%
+      
+      mutate_at(round_to_2_digits,         # Rounds these fields
+                round,
+                digits = 2) %>%
+        # Adds columns to some colors
+      adorn_totals(# Columns to TOTAL
+        "row",
+        .... = total_these_variables, na.rm = TRUE)
+    data[data == Inf] <- 0
+    data
+  }
+
+# This styles and formats the data table
+make_summarized_data_table <- function(data_to_make_table, name_of_fields_that_were_summarised, caption){
+  # Number of table heading must match number of columns in the table
+  table_headings = c(
+      paste0(name_of_fields_that_were_summarised),
+      paste0("Sample size (n)", footnote_marker_number(1)),
+      paste0("Drivers", footnote_marker_number(1)),
+      paste0("Average PMD", footnote_marker_number(1)), #, footnote_marker_alphabet(1)
+      paste0("Drivers in a crash", footnote_marker_number(2)),
+      paste0("Average annual OWI arrests", footnote_marker_number(3)),
+      paste0("Population", footnote_marker_number(4)),
+      "Annual VMT (100 million)",
+      "Share of drivers in a crash",
+      "Share of drivers",
+      "Share of VMT",
+      "Share of arrests",
+      "Share of population",
+      # "Share of arrests by weighted population",
+      "Ratio of crash to drivers",
+      "Ratio of crash to VMT",
+      "Ratio of arrests to drivers",
+      "Ratio of arrests to VMT"
+    )
+  total_row_number = which(data_to_make_table == "Total") # Find total row to bold
+  data_to_make_table %>% 
+  kbl(
+    caption = caption,
+    col.names = table_headings,
+    format.args = list(big.mark = ','),  # Format - add a comma to all numbers
+    escape = F
+  ) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+  kable_classic(full_width = T, html_font = "Cambria") %>% row_spec(total_row_number, bold = T) %>% # Total row format
+  # column_spec(7, width  = "6em") %>%
+  # column_spec(8, width  = "5em") %>%
+  # column_spec(16, color = "white") %>%
+  footnote(
+    general = "Average PMD is derived by taking driving data in four neighboring states (IA, IL, MI, MN, WI). VMT is derived by multplying PMD by total drivers.",
+    number = c("Source: 2017 National Household Travel Survey\n", "Source: 2017 and 2018 Crash Database from TOPS Lab\n", "Source: 2017 and 2018 Arrest data from Wisconsin Department of Justice\n", "Source: 2017 Census Bureau Population Estimates Program\n"),
+    footnote_as_chunk = T
+  )
+}
+```
+
+```{r Run import crash data}
+# Imports new databases - you may choose to select certain columns - parameters are file_loc, years, and crashes_columns
+
+# Relabel to match with NHTS data
+persons_new <- import_persons()
+persons_new <-
+  persons_new %>% mutate(
+    RACE = dplyr::recode(
+      RACE,
+      "A" = "Asian or Pacific Islander",
+      "B" = "Black or African American",
+      "H" = "Hispanic",
+      "I" = "American Indian or Alaska Native",
+      "W" = "White",
+      .missing = "Other/Unknown",
+      .default = "Other/Unknown" # for empty values
+    ),
+    SEX = dplyr::recode(
+      SEX,
+      "F" = "Female",
+      "M" = "Male",
+      "U" = "Unknown",
+      .missing = "Unknown",
+    )
+  ) %>% get_age_groups_10yr(., age_column = persons_new$AGE) %>%
+  filter(CRSHSVR != "Property Damage")
+
+    # Rename columns so to match with NHTS data
+    persons_new <-
+      persons_new %>% setnames(., c("RACE", "SEX", "AGE"),
+                               c("R_RACE", "R_SEX", "R_AGE"))
+# persons_new <- persons_new %>% filter(TOTUNIT == 1)
+persons_drivers <- persons_new %>% filter(ROLE == "Driver")
+
+# Add age categories
+census17 <- census17 %>% get_age_groups_10yr(., age_column = census17$R_AGE)
+```
+
+```{r summarize arrest data}
+arrests1718 <-
+  arrests1718 %>% as.data.table() %>%
+  mutate_at(c("dob", "violation_date", "consensus_adjud__date"), dmy) %>% mutate(
+    Race = dplyr::recode(
+      Race,
+      "A" = "Asian or Pacific Islander",
+      "B" = "Black or African American",
+      "H" = "Hispanic",
+      "I" = "American Indian or Alaska Native",
+      "W" = "White",
+      .default = "Other/Unknown",
+      # for empty values
+      .missing = "Other/Unknown"
+    ),
+    Sex = dplyr::recode(Sex,
+                        "F" = "Female",
+                        "M" = "Male",
+                        "U" = "Unknown"),
+    age = time_length(interval(as.Date(dob), as.Date(violation_date)), "years")
+  ) %>%
+  get_age_groups_10yr(., age_column = arrests1718$age) %>%
+  setnames(., c("Race", "Sex"),
+           c("R_RACE", "R_SEX"))
+```
+
+```{r read raw NHTS data}
+# This is to use package functions
+# nhts_data <- read_data("2017", "C:/NHTS/")
+
+# These csvs are to do our own analysis w/o using package functions
+nhts_person <- read_csv("C:/NHTS/csv/2017/person.csv") %>% as.data.table() %>% mutate(HOUSEID = as.character(HOUSEID))
+
+# Then we need to relabel variables
+nhts_person <- nhts_person %>% nhts_relabel_race() %>% nhts_relabel_race_if_hispanic() %>% nhts_relabel_sex() %>% nhts_relabel_hispanic() %>% nhts_combine_unknown_race() %>% get_age_groups_10yr(., nhts_person$R_AGE) # %>% mutate(R_RACE = factor(R_RACE, levels = race_factor_level), age_group_10yr = factor(age_group_10yr, levels = age_group_10yr_factor_level))
+
+# Misc code
+# list(R_AGE,R_RACE,R_SEX,R_HISP)  HHSTATE %in% c("WI")
+# filter(E != "NaN") %>% hablar::convert(hablar::int(R_AGE)) %>% mutate(R_AGE = replace_na(R_AGE, "N"))
+
+# nhts_person %>% nhts_relabel_race() %>% 
+#     mutate(R_RACE = ifelse(R_HISP %in% c("01", "Yes, Hispanic or Latino"), "Hispanic", R_RACE)) %>% nhts_combine_unknown_race()  #nhts_relabel_race_integ()
+```
+
+-   SEX == Unknown and AGE_GROUP == Unknown was removed, so totals amongs tables may not be equal
+-   Ratios are derived by 'share of' of each group
+
+```{r TABLE race and age comparisons}
+# This output a series of tables given varying arrangements of characteristics
+persons_new %>% filter(ROLE == 'Driver') %>% get_counts_of_PMD_crash_drivers(., fields_to_summarise = c("R_RACE")) %>%
+  arrange(factor(R_RACE, levels  = race_factor_level)) %>% get_data_of_percents_and_ratios_for_table(., fields_that_were_summarised = c("R_RACE")) %>% get_column_colors() %>% make_summarized_data_table(name_of_fields_that_were_summarised = c("Race"), caption = "Table 1. Share of travel, driver, and crashes by race")
+
+persons_new %>% filter(ROLE == 'Driver') %>% get_counts_of_PMD_crash_drivers(., fields_to_summarise = c("age_group_10yr")) %>% filter(age_group_10yr != "Unknown") %>% 
+  arrange(factor(age_group_10yr, levels  = age_group_10yr_factor_level)) %>% get_data_of_percents_and_ratios_for_table(., fields_that_were_summarised = c("age_group_10yr")) %>% get_column_colors() %>% make_summarized_data_table(name_of_fields_that_were_summarised = c("Age group"), caption = "Table 2. Share of travel, driver, and crashes by age group")
+
+persons_new %>% filter(ROLE == 'Driver') %>% get_counts_of_PMD_crash_drivers(., fields_to_summarise = c("R_SEX")) %>% filter(R_SEX != "Unknown") %>% get_data_of_percents_and_ratios_for_table(., fields_that_were_summarised = c("R_SEX")) %>% get_column_colors() %>% make_summarized_data_table(name_of_fields_that_were_summarised = c("Sex"), caption = "Table 3. Share of travel, driver, and crashes by sex")
+
+persons_new %>% filter(ROLE == 'Driver') %>% get_counts_of_PMD_crash_drivers(., fields_to_summarise = c("R_SEX", "R_RACE")) %>% filter(R_SEX != "Unknown") %>% 
+  arrange(factor(R_RACE, levels  = race_factor_level)) %>% get_data_of_percents_and_ratios_for_table(., fields_that_were_summarised = c("R_SEX", "R_RACE")) %>% get_column_colors() %>% make_summarized_data_table(name_of_fields_that_were_summarised = c("Sex", "Race"), caption = "Table 4. Share of travel, driver, and crashes by sex and race")
+
+persons_new %>% filter(ROLE == 'Driver') %>% get_counts_of_PMD_crash_drivers(., fields_to_summarise = c("age_group_10yr", "R_RACE")) %>% filter(age_group_10yr != "Unknown") %>% 
+  arrange(factor(R_RACE, levels  = race_factor_level)) %>% get_data_of_percents_and_ratios_for_table(., fields_that_were_summarised = c("age_group_10yr", "R_RACE")) %>% get_column_colors() %>% make_summarized_data_table(name_of_fields_that_were_summarised = c("Age group", "Race"), caption = "Table 5. Share of travel, driver, and crashes by age group and race")
+
+persons_new %>% filter(ROLE == 'Driver') %>% get_counts_of_PMD_crash_drivers(., fields_to_summarise = c("age_group_10yr", "R_SEX")) %>% filter(R_SEX != "Unknown", age_group_10yr != "Unknown") %>% get_data_of_percents_and_ratios_for_table(., fields_that_were_summarised = c("age_group_10yr", "R_SEX")) %>% get_column_colors() %>% make_summarized_data_table(name_of_fields_that_were_summarised = c("Age group", "Sex"), caption = "Table 6. Share of travel, driver, and crashes by age group and sex")
+```
+
+```{r get dmv drivers licenses}
+# A somewhat separate project - look at DMV licensed drivers
+lic_2017 <- read_csv("W:/x/CountyByAge2017.csv")
+agesum_2017 <- data.frame(age = names(lic_2017[,-1]), lic_2017=colSums(lic_2017[,-1]))
+lic_2018 <- read_csv("W:/x/CountyByAge2018.csv")
+agesum_2018 <- data.frame(age = names(lic_2018[,-1]), lic_2018=colSums(lic_2018[,-1]))
+
+# Join licensed and get average
+licensed <- left_join(agesum_2017, agesum_2018, by = "age") %>% mutate(age = as.integer(age)) %>% filter(!is.na(age)) %>% mutate(ave_1718 =(lic_2017 + lic_2018)/2)
+```
+```{r table 3 gather by licensed drivers and age}
+# Add age groups
+licensed <- get_age_groups_10yr(licensed, age_column = licensed$age) %>% as.data.table() # %>% group_by(age_group_10yr) %>% count(age_group_10yr,sum(ave_1718, na.rm = TRUE))
+
+# Get count by age_group
+license_count <- licensed[, .(total_lic1718=sum(ave_1718, na.rm = TRUE)), by = age_group_10yr]
+
+
+# Get drivers in all crashes # TAKE OFF property damage with loading crash data above
+persons_drivers %>% filter(age_group_10yr != "Unknown") %>% 
+person_summarise_crash_count(., fields_to_summarise = "age_group_10yr") %>% left_join(. , license_count, by = "age_group_10yr") %>% mutate(percent_of_crashes = crash_count * 100 / sum(crash_count, na.rm = TRUE)) # %>% count(sum(crash_count))
+
+
+# Get drivers in injury/death crashes 
+persons_drivers %>% filter(CRSHSVR != "Property Damage", age_group_10yr != "Unknown") %>% 
+person_summarise_crash_count(., fields_to_summarise = "age_group_10yr") %>% left_join(. , license_count, by = "age_group_10yr") %>% mutate(percent_of_crashes = crash_count * 100 / sum(crash_count, na.rm = TRUE))# %>% count(sum(crash_count))
+
+# %>% arrange(factor(age_group_10yr, levels  = age_group_10yr_factor_level))
+
+# Get drivers in injury/death crashes - alcohol susp
+persons_drivers %>% get_alcohol_impaired_driver_flag() %>% filter(alcohol_impaireddriver_flag == "Y", age_group_10yr != "Unknown", CRSHSVR != "Property Damage") %>% 
+person_summarise_crash_count(., fields_to_summarise = "age_group_10yr") %>% left_join(. , license_count, by = "age_group_10yr") %>% mutate(percent_of_crashes = crash_count * 100 / sum(crash_count, na.rm = TRUE), percent_of_lic = total_lic1718 * 100 / sum(total_lic1718, na.rm = TRUE))
+```
+
+```{r gather crashes by race}
+persons_drivers  %>% get_alcohol_impaired_driver_flag() %>% filter(alcohol_impaireddriver_flag == "Y", CRSHSVR != "Property Damage") %>% 
+person_summarise_crash_count(., fields_to_summarise = "R_RACE") %>% mutate(percent_of_crashes = crash_count * 100 / sum(crash_count, na.rm = TRUE)) 
+```
+
+I also made ggplot2 charts of the derived ratios
+
+```{r Ratio comparison of race and sex version 2}
+race_axis_labels <- c('American\nIndian or\nAlaska Native', 'Asian or\nPacific\nIslander', 'Black or\nAfrican\nAmerican', 'Hispanic', 'White', 'Other/\nUnknown') # Took out 'Native Hawaiian or other Pacific Islander'
+# By race and sex
+ratio_fill = c("#428BCA", "#4DB848", "#D50032","#d6a60f")
+persons_new %>% filter(ROLE == 'Driver') %>% get_counts_of_PMD_crash_drivers(., fields_to_summarise = c("R_RACE", "R_SEX")) %>%
+  filter(R_SEX != "Unknown") %>%
+  get_data_of_percents_and_ratios_for_table(., fields_that_were_summarised = c("R_RACE", "R_SEX")) %>%
+  select(R_RACE, R_SEX, c(ends_with("ratio"))) %>%
+  # arrange(factor(R_RACE, levels  = race_factor_level)) %>%
+  pivot_longer(cols = c(ends_with("ratio")),
+               values_to = c("ratio_data")) %>%
+  mutate(ratio_data = as.numeric(ratio_data)) %>% 
+  filter(R_RACE != "Total") %>%
+  ggplot(aes(
+    x = factor(R_RACE, levels = race_factor_level),
+    y = ratio_data,
+    fill = factor(name, levels = ratios_factor_levels)
+  )) +
+  geom_bar(position = "dodge", stat = "identity") +
+  theme_bar_charts(base_size = 8) +
+  theme(axis.text.y = element_blank(),
+        legend.position =  c(.2, .95),
+        legend.direction = "horizontal",
+        legend.text=element_markdown(size=8)
+        # legend.text = element_text(color =  c( "#428BCA", "#4DB848", "#D50032","#d6a60f"))
+  ) +
+  # coord_flip() 
+  geom_text(
+    aes(label = round(ratio_data,1), color = factor(name, levels = ratios_factor_levels)),
+    position = position_dodge(width = .9),
+    vjust = -.8,
+    size = 3,
+    fontface = "bold"
+  ) +
+  scale_y_continuous(expand = expansion(mult = c(0, .05)),
+                         name = ""
+                         # limits = c(0, 10)
+                     ) +
+  guides(colour=FALSE) +
+  scale_color_manual( # For geom_text
+    values = c(
+      "crash_drivers_ratio" = "#428BCA",
+      "crash_vmt_ratio" = "#4DB848",
+      "arrest_driver_ratio" = "#D50032",
+      "arrest_vmt_ratio" = "#d6a60f"
+    )
+  ) + #for geom_text
+  scale_fill_manual(
+    # For bar chart fill
+    # for bars
+    name = "",
+    labels = paste(
+      "<span style='color:",
+      ratio_fill,
+      ";'>",
+      c("Crash to driver", "Crash to VMT", "Arrest to driver", "Arrest to VMT"),
+      "</span>"
+    ),
+    values =  ratio_fill
+    # color = c("428BCA", "428BCA", "428BCA","428BCA"),
+    # values = c(
+    #   "crash_drivers_ratio" = "#428BCA",
+    #   "crash_vmt_ratio" = "#4DB848",
+    #   "arrest_driver_ratio" = "#D50032",
+    #   "arrest_vmt_ratio" = "#d6a60f"
+    # )
+    # labels = c("Crashes", "Drivers", "VMT", "Arrest to VMT")
+  ) +
+  scale_x_discrete(labels= race_axis_labels) +
+  labs(
+    title = "Figure 1. Ratios by age and sex"
+  ) + facet_wrap( ~ R_SEX)
+
+```
+
+```{r chart of age of killed driver by VMT}
+age_craash_vmt_killed <- persons_new %>% filter(ROLE == "Driver", WISINJ == 'Fatal Injury') %>% 
+get_counts_of_PMD_crash_drivers(., fields_to_summarise = "age_group_10yr") %>% filter(age_group_10yr!= "Unknown") %>% mutate(byvmt = crash_count/(PMD*total_drivers)*1000000)
+
+age_craash_vmt_killed %>%  
+ggplot(aes(x= age_group_10yr, y = byvmt)) + geom_bar(fill = "#428BCA", position="dodge", stat="identity") +
+  # geom_col(fill = "#428BCA") +
+  theme_classic() +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_text(size = 14),
+    legend.position = "none",
+   # plot.title = element_text(size = 10),
+    plot.title.position = "plot",
+    plot.title = element_markdown(lineheight = 1.1) # for title colors
+   # legend.text = element_markdown(size = 11)
+   ) +
+   geom_text(aes(age_group_10yr, byvmt, label = round(byvmt, 3)),
+             color = "#428BCA",
+     position = position_dodge(width = .9),
+     vjust = -.4,
+     size = 5,
+     fontface = "bold")+
+     scale_y_continuous(limits = c(0, 0.028),
+     expand = expansion(mult = c(0, .05)), name = "") +
+  labs(title = "Rate of killed drivers in a crash by 1,000,000 VMT")
+```
