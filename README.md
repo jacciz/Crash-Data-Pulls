@@ -1,15 +1,15 @@
 These scripts make data pull requests and data analysis faster and easier. I use them internally in my job, but wanted to share for portfolio purposes.
-There is also a crash data pull template that is an outline to do quick data pulls.
+There is also a crash data pull template that I use to quickly start a data pull.
 I created many functions that:
 - Convert data from SAS to R-friendly format (.FST)
 - Import data from old and new databases in this .FST format, which also relabels some old db variables to match with new db
 - Combine old and new databases into a single data frame
 - Get crash flags (i.e. deer, teen driver)
 - Bin by age group and crash time
-- and also snippets (i.e. code chunks)
+- and also snippets (i.e. code chunks) so I can have a consistent theme of my charts
 
 ## 'Crash_Analysis_Functions.R'
-These functions are loaded into the template.
+These functions are loaded into the template so I can easily call them.
 
 ### Import data functions for new db:
 + import_crashes(fileloc = file_loc, years_selected = years, selected_columns = crashes_columns)         - also for vehicle and persons  
@@ -66,7 +66,7 @@ This script will batch open CSV files in file_loc, put it in a df, export as .FS
 This script will open SAS narrative files, put it in a df, export as .FST as a shortened name (i.e. 17narrative)
 
 ## Export SAS to FST Script
-This folder contains a Powershell program that will update current year crash data. It runs a SAS script and an R script to export data into a .FST.
+This folder contains a Powershell program that will update current year crash data by a click of a button. It runs a SAS script and an R script to export data into a .FST.
 
 ## 'Export to CSV.sas' and 'Export to CSV 2016 Prior.sas'
 Save SAS files as a .CSV to a local location. These CSVs will be used for 'Save from CSV to FST Batch.R'
