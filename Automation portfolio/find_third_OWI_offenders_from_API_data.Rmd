@@ -5,10 +5,10 @@ output: html_document
 This script imports court case data from the API output. It is a flattened JSON with 2,000+ variable names. The purpose of this notebook is to find OWI offenders, find if they have a 3+ OWI offense, then find sentencing length under that specific citation. A flattened JSON files was a bit tricky to work with as a case may have multiple offenses (i.e. charges) under different branches. I wrote scripts that grabs the column name, chops off the end part, then grabs sentence length under that exact same branch to make sure I'm grabbing the correct sentencing data.
 
 Functions include:
-  + Gather all OWI cases by performing a text search of all the statute_citations column
-  + Gather sentencing data of certain case types (done either by a specific sentenceCode or conditionCode)
-  + Merges all the sentencing data into one dataframe
-  + I run these functions for each charge in a case. I found most cases have 12 or fewer charges
+  + Gather all OWI cases by performing a text search of the statute_citations column
+  + Then also finds if a 3+ offender by performing another text search
+  + Gather sentencing data of certain case types (done either by a specific sentenceCode or conditionCode). Depending on which branch these codes are located, this grabs the associated sentence length data. Most court cases should have exactly 1 of these codes, but the code does account for both. Later on, the code is written so that condCode takes priority, if there is data in both areas.
+  + I run these functions for each charge in a case as to look under different branches. The functions do have a charge_no variable. I found most cases have 12 or fewer charges
   + Then the dataframe of these 12 charges (that have sentencing data) are merged into 1 clean dataframe and then I did my analysis
 
 ```{r setup, include=FALSE}
@@ -445,19 +445,10 @@ owi_cases <- semi_join(cases, owi_cases, by = "id")
 # Look at charges descriptions. Search is grepl("3RD|3rd|4th|5th+|5th|6th|7th|8th|9th", thisrow), make sure this is right - .*\\. means wildcard
 # This filters charges that are not already in grepl() above
 owi_cases %>% select(matches(c("(^charges.*\\.descr$)"))) %>% tidyr::gather() %>% select(value) %>% unique() %>% filter(across(value, ~ !grepl('3RD|3rd|4th|5th+|5th|6th|7th|8th|9th', .)))
-
-# Not using this, 
-# third_off <- get_third_plus_offenders(owi_cases)
-# third_off_data <- semi_join(sel_cases, third_off, by = "id")
-
-# third_off_data$charges.jdgmts.timeConds.condLen1 %>% unique()
-# cases$charges.jdgmts.timeConds.condLen1 %>% unique()
-
 ```
 
 ```{r Run to get all sentence lengths of third offenders }
 # Do the analysis!
-# Make sure you remove duplicate (look above)
 # Verify there are 11 total charges cases$chargex.x
 # This creates 4 new columns - timex and time_perx
   a1 <- if_owi_citation(cases, "charges.statuteCite", "charges.[[:alpha:]]", "1")
@@ -472,13 +463,9 @@ owi_cases %>% select(matches(c("(^charges.*\\.descr$)"))) %>% tidyr::gather() %>
   a10 <- if_owi_citation(cases, "charges0.statuteCite", "charges0.", "10")
   a11 <- if_owi_citation(cases, "charges1.statuteCite", "charges1.", "11")
   a12 <- if_owi_citation(cases, "charges2.statuteCite", "charges2.", "12")
-# all_owi_sentence <- Reduce(function(x, y) merge(x, y, all=TRUE, by = "id"), list(a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12)) %>% select_if(~sum(!is.na(.)) > 0)
 
 # Combine all non-empty df
 all_owi_sentence <- Reduce(function(x, y) merge(x, y, all=TRUE, by = "id"), list(a1,a2,a3,a4,a5,a6,a7,a8)) %>% select_if(~sum(!is.na(.)) > 0)
-
-# Next, use this function to combine all time rows - many are NA - into a singe pretty df
-# all_lengths <- merge_sentence_length(all_owi_sentence) %>% select(id, length, time_length)
 
 # Next, make into a singe pretty df
 all_lengths <- merge_sentence_length_xy(all_owi_sentence) %>% select(id, length.x, time_length.x, length.y, time_length.y)

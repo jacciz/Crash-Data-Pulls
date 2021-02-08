@@ -5,11 +5,13 @@ output:
   html_document:
     df_print: paged
 ---
-This project finds risk ratios given a driver age, sex, race/ethnicity. I gathers data from multiple sources and combined them into summary tables broken down by varying arrangements of these characteristics. This analysis I worked in a data table environment as I found it quite easy to summarize and join data.
+This project finds risk ratios given a driver age, sex, race/ethnicity. I gathered data from multiple data sources and combined them into a series of summary tables broken down by varying arrangements of these characteristics. This analysis I worked in a data table environment (verse a data frame) as I found it quite easy to summarize and join data.
 
 The project includes 1) arrest data 2) census data via their API 3) NHTS data to derive annual VMT 4) NHTS data to get estimated drivers 5) crash data
 
-Since I was working with data from the above 5 sources, I found the best way to combine them was to have matching column  names. I wrote functions that renamed columns into 1 standard naming convention. In addition, I also renamed certain variable (like race) so they all follow the same "race" names Then functions to summarize each data given the exact same characteristic (i.e. by age group via the parameter 'fields_to_summarize' parameter) and then functions that compiles all this data into a table, make a pretty HTML table, and adds a color gradient to some columns.
+Since I was working with data from the above 5 sources, I found the best way to combine them was to have matching column names. I wrote functions that renamed columns into 1 standard naming convention. In addition, I also renamed certain variables (like race) so they all follow the same "race" categories. Then functions to summarize each data given the exact same characteristic (i.e. by age group via the 'fields_to_summarize' parameter) and then functions that compiles all this data into a table, make a pretty HTML table, and adds a color gradient to some columns. I also factored the age group and race categories so the tables display them in alphabetical/numeric order.
+
+I also made a few plots via ggplot2 and created my own plot theme.
 
 I can't show the outputs as it is part of an unpublished research project.
 

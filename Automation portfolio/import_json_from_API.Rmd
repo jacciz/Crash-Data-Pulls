@@ -2,7 +2,7 @@
 title: "rest_api_queries"
 output: html_document
 ---
-This script gathers court case data from an API. Data comes in JSON format. Output is one long flattened files of court cases given a date range. The API works in two steps - 1) Gather court case number and county code for each day, then 2) Uses case number / county code to get actual court case data. I wrote a final function that combines these two functions. Output is saved in an RDS format for data analysis (see get_third_offenders.RMD).
+This script gathers court case data from a REST API. Data is received in JSON format so I use a script that flattens the data into one long format. My scripts works in two steps - 1) Gather court case number and county code for each day given a start/end date, then 2) Uses these case numbers / county codes to get specific court case data. I wrote a final function that combines these two functions via the apply and rbind functions. Output is saved in an RDS format for data analysis (see get_third_offenders.RMD).
 
 I have functions to:
   + Flatten JSON
@@ -213,7 +213,7 @@ get_case_data <- function(df_row, b) {
 get_allcasedata_complete <-
   function(b = baseurl, code = wcisClsCod, start, end, day_int) {
     
-    # First, we get long df with all casenumbers/county code in the daterange
+    # First, we get a long df with all casenumbers/county code in the daterange
     day = get_daterange(start_date, end_date, days_int = day_int) # day returns a df of date ranges to iterate
     all_case_numbers <-
       foreach(day=iterators::iter(day, by='row'), .combine = 'rbind') %dopar% {
@@ -258,7 +258,7 @@ cases <- do.call("rbind.fill",
              jul__jun_1920_codeCM
              )) %>% mutate(id = row_number())
 
-# save as csv as a backup - RENAME so you don't overwrite file
+# save as rds as a backup - RENAME so you don't overwrite file
 saveRDS(cases, "C:/REST_API_Searches/x.rds")
 ```
 
