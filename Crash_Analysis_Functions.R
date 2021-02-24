@@ -39,18 +39,19 @@ read_fst_for_new_db <- function(file_to_read, col_to_select) {
       "DRUGSUSP",
       "CARRID"
     )
-  )), as.character) %>% 
+  )), as.character) %>%
     mutate_at(dplyr::vars(starts_with("HAZCLSS")), as.character)
     # mutate_at(dplyr::vars(any_of("NTFYDATE")), ymd)
 }
 
 read_fst_for_old_db <- function(file_to_read) {
-  read_fst(file_to_read, as.data.table = TRUE) %>%       # Relabels county names to match new db
+  read_fst(file_to_read, as.data.table = TRUE) %>%
     mutate_at(dplyr::vars(any_of(c(
       "URBRURAL", "STPTLNB", "ZIPCODE", "NTFYDATE", "TKBSPRMT", "MCFLNMBR", "DOCTNMBR"
     ))), as.character) %>%
-    mutate_at(dplyr::vars(starts_with("DMGAR")), as.character) %>% 
+    mutate_at(dplyr::vars(starts_with("DMGAR")), as.character) %>%
     # mutate_at(dplyr::vars(any_of("NTFYDATE")), ymd) %>%
+    # Format county name so they are not all in caps
     mutate_at("CNTYCODE", str_to_title) %>%
     mutate(
       CNTYCODE = ifelse(CNTYCODE == "Fond Du Lac", "Fond du Lac", CNTYCODE))
@@ -83,15 +84,16 @@ relabel_WISINJ_old_db <- function(df) {
       )
     ))
 }
-###### Import Data Functions ###### 
+###### Import Data Functions ######
 # Puts data in a list of filenames to import
+# USE filepath !! ?
 import_crashes <-
   function(fileloc = file_loc,
            years_selected = years,
            selected_columns = crashes_columns) {
     data_years = paste(years_selected, "crash", sep = "") # combines crashes with years to select data
     crash = paste(fileloc, data_years, ".fst", sep = "") # select data in specified location/format
-    combine_data <-  
+    combine_data <-
       do.call(bind_rows, lapply(crash, read_fst_for_new_db, selected_columns)) # reads and combines data
   }
 
@@ -102,7 +104,7 @@ import_vehicles <-
     # Uses 'years'to find all vehicle fst files with matching year and imports them
     data_years = paste(years_selected, "vehicle", sep = "") # combines crashes with years to select data
     vehicle = paste(fileloc, data_years, ".fst", sep = "") # select data in specified location/format
-    
+
     # combines all the years selected, in a loop
     combine_data <-
       do.call(bind_rows, lapply(vehicle, read_fst_for_new_db, selected_columns))
@@ -134,7 +136,7 @@ import_crashes_old <-
     # then get list of exact file location
     data_years = paste(years_selected, "crash", sep = "")
     crash_old = paste(fileloc, data_years, ".fst", sep = "")
-    
+
     # this imports data, keeps only crashes in public areas
     # Then it relabels column names
     import_crashes_old <-
@@ -198,7 +200,7 @@ import_persons_old <-
         ACCDLOC == 'INTERSECTION' |
         ACCDLOC == 'NON-INTERSECTION'
       ) %>% dplyr::select(-ACCDLOC)
-    
+
     import_persons_old <-
       setnames(
         import_persons_old,
@@ -374,7 +376,7 @@ get_seatbelt_flag_by_unit <- function(dataframe) {
   return(left_join(dataframe, sb, by = c("CRSHNMBR", "UNITNMBR")) %>% mutate(seatbelt_flag_unit = replace_na(seatbelt_flag_unit, "N")))
 }
 
-###### Get Crash Time Function ###### 
+###### Get Crash Time Function ######
 # adds new column called newtime that gives crash hour
 get_crash_times <- function(dataframe) {
   dataframe %>% mutate(newtime = cut(
@@ -385,7 +387,7 @@ get_crash_times <- function(dataframe) {
     include.lowest = T
   ))
 }
-###### Get Age Group Functions ###### 
+###### Get Age Group Functions ######
 get_age_groups <- function(dataframe) {
   dataframe %>% mutate(age_group = cut(  # add age_group column, 5 year intervals
     AGE,
@@ -417,7 +419,7 @@ get_age_groups_10yr <- function(dataframe) {
 }
 
 
-###### Find Motorcyclists ###### 
+###### Find Motorcyclists ######
 get_motorcycle_persons <- function(person_df, vehicle_df) {
   motorcycle <-
     vehicle_df %>% filter(VEHTYPE == "Motorcycle" |
@@ -468,7 +470,7 @@ get_drug_alc_suspected <- function(person_df) {
     )
 }
 
-###### Get County Name Function ###### 
+###### Get County Name Function ######
 # This relabels so county code is exactly 2 digits, not needed
 # all_crashes <-
 #   all_crashes %>% mutate(CNTYCODE = formatC(
@@ -562,15 +564,15 @@ county_rename <-
 
 # all_persons %>% filter(year(CRSHDATE) == 2018) %>%get_speed_flag() %>%
 #   filter(speed_flag == "Y") %>% distinct(CRSHNMBR) %>% nrow() # 20,061 in 2018, 19,182 in 2017, 19,540 in 2016
-# 
+#
 # all_persons %>% filter(year(CRSHDATE) == 2018) %>% get_seatbelt_flag_by_unit() %>%
 #   filter(seatbelt_flag == "Y") %>% distinct(CRSHNMBR) %>% nrow() # 11,381 in 2019, 12,317 in 2017 - not right?
-# 
+#
 # all_persons %>% filter(year(CRSHDATE) == 2017) %>% get_distracted_driver_flag() %>%
 #   filter(distracted_flag == "Y") %>% distinct(CRSHNMBR) %>% nrow() # 24,192 in 2017, 12,377 in 2019
-# 
+#
 # all_crashes %>% filter(year(CRSHDATE) == 2017) %>% get_deer_crashes() %>%
 #   filter(deer_flag == "Y") %>% nrow() # xx in 2019, 19,899 in 2017, 20,413 in 2016
-# 
+#
 # get_motorcycle_persons(all_persons, all_vehicles) %>%
 #   filter(year(CRSHDATE) == 2017, WISINJ == "Fatal Injury") %>% nrow()

@@ -1,3 +1,4 @@
+# This is now an R package. See the package on [GitHub](https://github.com/jacciz/wisdotcrashdatabase)
 These scripts make data pull requests and data analysis faster and easier. I use them internally in my job, but wanted to share for portfolio purposes.
 There is also a crash data pull template that I use to quickly start a data pull.
 I created many functions that:
